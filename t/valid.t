@@ -8,7 +8,6 @@ use experimental 'signatures';
 use Test::More;
 use CycloneDX::Parser;
 use File::Basename 'basename';
-use Test2::Plugin::BailOnFail;
 
 my %files = invalid_files();
 foreach my $file ( sort keys %files ) {
@@ -37,21 +36,37 @@ foreach my $file ( sort keys %files ) {
 sub has_errors ( $parser, $reasons ) {
     my @errors = $parser->errors;
     $reasons = [$reasons] unless 'ARRAY' eq ref $reasons;
+    if ( !@errors ) {
+        fail sprintf "Expected errors %s not found because there were no errors", join( ', ', @$reasons );
+        return;
+    }
 
     local $Test::Builder::Level = $Test::Builder::Level + 1;
-    foreach my $reason (@$reasons) {
-        my $found = grep {/$reason/} @errors;
-        if ($found) {
-            pass "Found expected error '$reason'";
-        }
-        else {
-            if ( !@errors ) {
-                fail "Expected error '$reason' but no errors found";
+
+    my %found;
+    ERROR: foreach my $error (@errors) {
+        my $found = 0;
+        REASON: foreach my $reason (@$reasons) {
+            if ( $error =~ /$reason/ ) {
+                $found = 1;
+                $found{error}{$error}++;
+                $found{reason}{$reason}++;
+                pass "Found expected error '$reason'";
+                next ERROR;
             }
-            else {
-                fail "Expected error '$reason' not found in:\n" . join( "\n", @errors );
-            }
         }
+
+    }
+
+    if ( my $missing_reasons = join "    \n", grep { !$found{reason}{$_} } @$reasons ) {
+        fail "Expected errors not found:\n$missing_reasons";
+    }
+    @errors = grep { !$found{error}{$_} } @errors;
+
+    if (@errors) {
+        use Data::Dumper;
+        diag Dumper [ $parser->errors ];
+        fail "Unexpected errors:\n" . join( "\n", @errors );
     }
 }
 
@@ -70,6 +85,7 @@ sub invalid_files {
         't/data/1.5/valid-service-1.5.json'            => "",
         't/data/1.5/invalid-component-ref-1.5.json'    => [
             "components.1.bom-ref: Duplicate bom-ref '123'",
+            "Invalid components.2.bom-ref. Must match .*?, not ''",
         ],
         't/data/1.5/invalid-hash-sha512-1.5.json'            => "",
         't/data/1.5/invalid-scope-1.5.json'                  => "",
