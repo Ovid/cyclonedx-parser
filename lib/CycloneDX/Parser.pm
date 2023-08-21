@@ -30,6 +30,7 @@ sub _initialize ( $self, %arg_for ) {
     }
     $self->{json}   = decode_json($json);
     $self->{errors} = [];
+    $self->{stack}  = [];
     $self->_validate(
         keys => [
             [ 'bomFormat',   'CycloneDX' ],
@@ -65,23 +66,36 @@ sub _add_error ( $self, $error ) {
     push @{ $self->{errors} }, $error;
 }
 
+sub _push_stack ( $self, $name ) {
+    push @{ $self->{stack} }, $name;
+}
+
+sub _pop_stack ($self) {
+    pop @{ $self->{stack} };
+}
+
+sub _stack ($self) {
+    return join '.', @{ $self->{stack} };
+}
+
 # Yes, this should use a JSON validator, but we need it to be lightweight
 # and not require any non-core modules.
 sub _validate ( $self, %arg_for ) {
     foreach my $key ( @{ $arg_for{keys} } ) {
+        $self->_push_stack( $key->[0] );
         $self->_validate_key(
             inspect  => $arg_for{source},
             required => $arg_for{required},
             key      => $key->[0],
             matches  => $key->[1],
-            name     => $key->[2],
         );
+        $self->_pop_stack;
     }
 }
 
 sub _validate_key ( $self, %arg_for ) {
-    my ( $data, $key, $required, $matches, $name ) = @arg_for{qw(inspect key required matches name)};
-    $name ||= $key;
+    my ( $data, $key, $required, $matches ) = @arg_for{qw(inspect key required matches )};
+    my $name = $self->_stack;
     if ( !exists $data->{$key} ) {
         if ($required) {
             $self->_add_error("Missing required field '$name'");
@@ -117,30 +131,33 @@ sub _validate_components ( $self, $components ) {
         $self->_add_error('Components must be an array');
         return;
     }
-    foreach my $component (@$components) {
+    foreach my $i ( 0 .. $#$components ) {
+        $self->_push_stack($i);
+        my $component = $components->[$i];
         $self->_validate(
             keys => [
                 [   'type',
                     [   "application", "framework", "library", "container", "platform", "operating-system", "device", "device-driver", "firmware", "file",
                         "machine-learning-model", "data",
                     ],
-                    'component.type'
                 ],
-                [ 'name', qr/\S/, 'component.name' ],
+                [ 'name', qr/\S/ ],
             ],
             required => 1,
             source   => $component,
         );
         $self->_validate(
             keys => [
-                [ 'version',   qr/\S/,                          'component.version' ],     # version not enforced
-                [ 'mime-type', qr{^[-+a-z0-9.]+/[-+a-z0-9.]+$}, 'component.mime-type' ],
+                [ 'version',   qr/\S/, ],                            # version not enforced
+                [ 'mime-type', qr{^[-+a-z0-9.]+/[-+a-z0-9.]+$}, ],
             ],
             source => $component,
         );
         if ( exists $component->{modified} ) {
-            $self->_add_error('component.modified is deprecated and should not be used.');
+            my $name = $self->_stack;
+            $self->_add_error('$name.modified is deprecated and should not be used.');
         }
+        $self->_pop_stack;
     }
 }
 
