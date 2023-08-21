@@ -1,0 +1,17 @@
+/MANIFEST
+/MANIFEST.bak
+/MYMETA.*
+/Makefile
+/Makefile.old
+/blib/
+/pm_to_blib
+*~
+*.sw[pon]
+errors.err
+*#
+.#*
+/CycloneDX-Parser-*/
+/CycloneDX-Parser-*.tar
+/CycloneDX-Parser-*.tar.gz
+/cover_db/
+/.build/
