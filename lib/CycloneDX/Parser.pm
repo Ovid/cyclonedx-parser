@@ -41,9 +41,9 @@ sub _initialize ( $self, %arg_for ) {
     );
     $self->_validate(
         keys => [
-            ['components', \&_validate_components],
+            [ 'components', \&_validate_components ],
         ],
-        source   => $self->sbom_spec,
+        source => $self->sbom_spec,
     );
 
     return $self;
@@ -67,8 +67,8 @@ sub _add_error ( $self, $error ) {
 
 # Yes, this should use a JSON validator, but we need it to be lightweight
 # and not require any non-core modules.
-sub _validate ($self, %arg_for) {
-    foreach my $key (@{ $arg_for{keys} }) {
+sub _validate ( $self, %arg_for ) {
+    foreach my $key ( @{ $arg_for{keys} } ) {
         $self->_validate_key(
             inspect  => $arg_for{source},
             required => $arg_for{required},
@@ -82,8 +82,8 @@ sub _validate ($self, %arg_for) {
 sub _validate_key ( $self, %arg_for ) {
     my ( $data, $key, $required, $matches, $name ) = @arg_for{qw(inspect key required matches name)};
     $name ||= $key;
-    if (!exists $data->{$key} ) {
-        if ( $required ) {
+    if ( !exists $data->{$key} ) {
+        if ($required) {
             $self->_add_error("Missing required field '$name'");
         }
         return;
@@ -98,7 +98,7 @@ sub _validate_key ( $self, %arg_for ) {
         if ( $value !~ $matches ) {
             $self->_add_error("Invalid $name. Must match '$matches', not '$value'");
         }
-    } 
+    }
     elsif ( ref $matches eq 'ARRAY' ) {
         if ( !grep { $_ eq $value } @$matches ) {
             $self->_add_error("Invalid $name. Must be one of '@$matches', not '$value'");
