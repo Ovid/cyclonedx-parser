@@ -8,19 +8,21 @@ use experimental 'signatures';
 use Test::More;
 use CycloneDX::Parser;
 use File::Basename 'basename';
+use Test2::Plugin::BailOnFail;
 
 my %files = invalid_files();
-while ( my ( $file, $reason ) = each %files ) {
+foreach my $file ( sort keys %files ) {
+    my $reason        = $files{$file};
     my $assumed_valid = basename($file) =~ /^valid/;
+    my $parser        = CycloneDX::Parser->new( json => $file );
     if ($reason) {
-        subtest "$reason: $file" => sub {
-            my $parser = CycloneDX::Parser->new( json => $file );
-            ok !$parser->is_valid,            "The SBOM should be invalid because $reason";
-            ok has_error( $parser, $reason ), "The SBOM should be invalid because $reason";
+        my $name = ref $reason ? $reason->[0] : $reason;
+        subtest "$name: $file" => sub {
+            ok !$parser->is_valid, "The SBOM should be invalid";
+            has_errors( $parser, $reason );
         };
     }
     else {
-        my $parser = CycloneDX::Parser->new( json => $file );
         if ( !$parser->is_valid ) {
             if ($assumed_valid) {
                 fail "Unexpected Errors in $file:\n" . join( "\n", $parser->errors );
@@ -32,29 +34,43 @@ while ( my ( $file, $reason ) = each %files ) {
     }
 }
 
-sub has_error ( $parser, $reason ) {
+sub has_errors ( $parser, $reasons ) {
     my @errors = $parser->errors;
-    my $found  = grep {/$reason/} @errors;
-    unless ($found) {
-        diag "Expected error '$reason' not found in:\n" . join( "\n", @errors );
+    $reasons = [$reasons] unless 'ARRAY' eq ref $reasons;
+
+    local $Test::Builder::Level = $Test::Builder::Level + 1;
+    foreach my $reason (@$reasons) {
+        my $found = grep {/$reason/} @errors;
+        if ($found) {
+            pass "Found expected error '$reason'";
+        }
+        else {
+            if ( !@errors ) {
+                fail "Expected error '$reason' but no errors found";
+            }
+            else {
+                fail "Expected error '$reason' not found in:\n" . join( "\n", @errors );
+            }
+        }
     }
-    return $found;
 }
 
 done_testing;
 
 sub invalid_files {
     return (
-        't/data/1.5/invalid-bomformat-1.5.json'              => "Invalid bomFormat. Must be 'CycloneDX', not 'AnotherFormat'",
-        't/data/1.5/invalid-specversion-1.5.json'            => "Invalid specVersion. Must be '1.5', not '1.3'",
-        't/data/1.5/invalid-version-1.5.json'                => "Invalid version. Must match .*?, not '12.3'",
-        't/data/1.5/invalid-hash-sha256-1.5.json'            => "",
-        't/data/1.5/invalid-patch-type-1.5.json'             => "",
-        't/data/1.5/valid-component-swid-1.5.json'           => "",
-        't/data/1.5/valid-license-expression-1.5.json'       => "",
-        't/data/1.5/valid-metadata-supplier-1.5.json'        => "",
-        't/data/1.5/valid-service-1.5.json'                  => "",
-        't/data/1.5/invalid-component-ref-1.5.json'          => "",
+        't/data/1.5/invalid-bomformat-1.5.json'        => "Invalid bomFormat. Must be 'CycloneDX', not 'AnotherFormat'",
+        't/data/1.5/invalid-specversion-1.5.json'      => "Invalid specVersion. Must be '1.5', not '1.3'",
+        't/data/1.5/invalid-version-1.5.json'          => "Invalid version. Must match .*?, not '12.3'",
+        't/data/1.5/invalid-hash-sha256-1.5.json'      => "",
+        't/data/1.5/invalid-patch-type-1.5.json'       => "",
+        't/data/1.5/valid-component-swid-1.5.json'     => "",
+        't/data/1.5/valid-license-expression-1.5.json' => "",
+        't/data/1.5/valid-metadata-supplier-1.5.json'  => "",
+        't/data/1.5/valid-service-1.5.json'            => "",
+        't/data/1.5/invalid-component-ref-1.5.json'    => [
+            "components.1.bom-ref: Duplicate bom-ref '123'",
+        ],
         't/data/1.5/invalid-hash-sha512-1.5.json'            => "",
         't/data/1.5/invalid-scope-1.5.json'                  => "",
         't/data/1.5/valid-component-swid-full-1.5.json'      => "",
@@ -68,7 +84,7 @@ sub invalid_files {
         't/data/1.5/valid-license-licensing-1.5.json'        => "",
         't/data/1.5/valid-metadata-tool-1.5.json'            => "",
         't/data/1.5/valid-signatures-1.5.json'               => "",
-        't/data/1.5/invalid-component-type-1.5.json'         => "Invalid component.type. Must be one of .*?, not 'foo'",
+        't/data/1.5/invalid-component-type-1.5.json'         => "Invalid components.0.type. Must be one of .*?, not 'foo'",
         't/data/1.5/invalid-license-choice-1.5.json'         => "",
         't/data/1.5/invalid-service-data-1.5.json'           => "",
         't/data/1.5/valid-compositions-1.5.json'             => "",
@@ -81,7 +97,7 @@ sub invalid_files {
         't/data/1.5/valid-dependency-1.5.json'               => "",
         't/data/1.5/valid-machine-learning-1.5.json'         => "",
         't/data/1.5/valid-minimal-viable-1.5.json'           => "",
-        't/data/1.5/invalid-empty-component-1.5.json'        => "Missing required field 'component.name'",
+        't/data/1.5/invalid-empty-component-1.5.json'        => "Missing required field 'components.0.name'",
         't/data/1.5/invalid-license-id-1.5.json'             => "",
         't/data/1.5/valid-assembly-1.5.json'                 => "",
         't/data/1.5/valid-empty-components-1.5.json'         => "",
@@ -100,7 +116,7 @@ sub invalid_files {
         't/data/1.5/valid-metadata-lifecycle-1.5.json'       => "",
         't/data/1.5/valid-release-notes-1.5.json'            => "",
         't/data/1.5/invalid-hash-sha1-1.5.json'              => "",
-        't/data/1.5/invalid-missing-component-type-1.5.json' => "Missing required field 'component.type'",
+        't/data/1.5/invalid-missing-component-type-1.5.json' => "Missing required field 'components.0.type'",
         't/data/1.5/valid-component-ref-1.5.json'            => "",
         't/data/1.5/valid-formulation-1.5.json'              => "",
         't/data/1.5/valid-metadata-manufacture-1.5.json'     => "",

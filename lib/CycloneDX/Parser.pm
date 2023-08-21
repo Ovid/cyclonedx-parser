@@ -28,9 +28,10 @@ sub _initialize ( $self, %arg_for ) {
         open my $fh, '<', $json or croak "Can't open $json: $!";
         $json = do { local $/; <$fh> };
     }
-    $self->{json}   = decode_json($json);
-    $self->{errors} = [];
-    $self->{stack}  = [];
+    $self->{json}          = decode_json($json);
+    $self->{errors}        = [];
+    $self->{stack}         = [];
+    $self->{bom_refs_seen} = {};
     $self->_validate(
         keys => [
             [ 'bomFormat',   'CycloneDX' ],
@@ -126,11 +127,18 @@ sub _validate_key ( $self, %arg_for ) {
     }
 }
 
+sub _bom_ref_seen ( $self, $bom_ref ) {
+    my $seen = $self->{bom_refs_seen}{$bom_ref};
+    $self->{bom_refs_seen}{$bom_ref}++;
+    return $seen;
+}
+
 sub _validate_components ( $self, $components ) {
     unless ( ref $components eq 'ARRAY' ) {
         $self->_add_error('Components must be an array');
         return;
     }
+
     foreach my $i ( 0 .. $#$components ) {
         $self->_push_stack($i);
         my $component = $components->[$i];
@@ -150,11 +158,21 @@ sub _validate_components ( $self, $components ) {
             keys => [
                 [ 'version',   qr/\S/, ],                            # version not enforced
                 [ 'mime-type', qr{^[-+a-z0-9.]+/[-+a-z0-9.]+$}, ],
+                [ 'bom-ref',   qr/\S/ ],
             ],
             source => $component,
         );
+
+        my $name = $self->_stack;
+
+        # bom-ref must be unique
+        if ( exists $component->{'bom-ref'} ) {
+            if ( $self->_bom_ref_seen( $component->{'bom-ref'} ) ) {
+                $self->_add_error( sprintf "$name.bom-ref: Duplicate bom-ref '%s'", $component->{'bom-ref'} );
+            }
+        }
+
         if ( exists $component->{modified} ) {
-            my $name = $self->_stack;
             $self->_add_error('$name.modified is deprecated and should not be used.');
         }
         $self->_pop_stack;
