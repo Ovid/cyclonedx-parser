@@ -145,4 +145,5 @@ __END__
 
 =head1 DESCRIPTION
 
-This module parses CycloneDX Software Bill of Materials (SBOMs), version 1.5 JSON.
+This module parses CycloneDX Software Bill of Materials (SBOMs), version 1.5
+JSON. It is a work in progress.
