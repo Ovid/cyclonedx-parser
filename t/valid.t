@@ -7,15 +7,29 @@ use warnings;
 use experimental 'signatures';
 use Test::More;
 use CycloneDX::Parser;
+use File::Basename 'basename';
 
 my %files = invalid_files();
 while ( my ( $file, $reason ) = each %files ) {
-    next unless $reason;
-    subtest "$reason: $file" => sub {
+    my $assumed_valid = basename($file) =~ /^valid/;
+    if ($reason) {
+        subtest "$reason: $file" => sub {
+            my $parser = CycloneDX::Parser->new( json => $file );
+            ok !$parser->is_valid,            "The SBOM should be invalid because $reason";
+            ok has_error( $parser, $reason ), "The SBOM should be invalid because $reason";
+        };
+    }
+    else {
         my $parser = CycloneDX::Parser->new( json => $file );
-        ok !$parser->is_valid,            "The SBOM should be invalid because $reason";
-        ok has_error( $parser, $reason ), "The SBOM should be invalid because $reason";
-    };
+        if ( !$parser->is_valid ) {
+            if ( $assumed_valid ) {
+                fail "Unexpected Errors in $file:\n" . join( "\n", $parser->errors );
+            }
+            else {
+                diag "Unexpected Errors in $file:\n" . join( "\n", $parser->errors );
+            }
+        }
+    }
 }
 
 sub has_error ( $parser, $reason ) {
@@ -86,7 +100,7 @@ sub invalid_files {
         't/data/1.5/valid-metadata-lifecycle-1.5.json'       => '',
         't/data/1.5/valid-release-notes-1.5.json'            => '',
         't/data/1.5/invalid-hash-sha1-1.5.json'              => '',
-        't/data/1.5/invalid-missing-component-type-1.5.json' => '',
+        't/data/1.5/invalid-missing-component-type-1.5.json' => "Missing required field 'component.type'",
         't/data/1.5/valid-component-ref-1.5.json'            => '',
         't/data/1.5/valid-formulation-1.5.json'              => '',
         't/data/1.5/valid-metadata-manufacture-1.5.json'     => '',

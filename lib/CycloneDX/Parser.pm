@@ -112,18 +112,21 @@ sub _validate_key ( $self, %arg_for ) {
     }
 }
 
-sub _validate_components ($self, $components) {
+sub _validate_components ( $self, $components ) {
     unless ( ref $components eq 'ARRAY' ) {
         $self->_add_error('Components must be an array');
         return;
     }
-    foreach my $component ( @$components ) {
+    foreach my $component (@$components) {
         $self->_validate_key(
             inspect  => $component,
             key      => 'type',
             name     => 'component.type',
             required => 1,
-            matches  => [ 'library', 'framework', 'container', 'operating-system', 'device', 'firmware', 'file' ],
+            matches  => [
+                "application",            "framework", "library", "container", "platform", "operating-system", "device", "device-driver", "firmware", "file",
+                "machine-learning-model", "data",
+            ],
         );
     }
 }
