@@ -24,6 +24,9 @@ version 0.01
 This module parses CycloneDX Software Bill of Materials (SBOMs), version 1.5
 JSON. It is a work in progress.
 
+Eventually earlier versions will be supported, but for now, trying to get it
+working and seeing how the design evolves.
+
 # AUTHOR
 
 Curtis "Ovid" Poe <curtis.poe@gmail.com>

@@ -30,7 +30,22 @@ sub _initialize ( $self, %arg_for ) {
     }
     $self->{json}   = decode_json($json);
     $self->{errors} = [];
-    $self->_validate_sbom;
+    $self->_validate(
+        keys => [
+            [ 'bomFormat',   'CycloneDX' ],
+            [ 'specVersion', '1.5' ],
+            [ 'version',     qr/^[1-9][0-9]*$/ ],
+        ],
+        required => 1,
+        source   => $self->sbom_spec,
+    );
+    $self->_validate(
+        keys => [
+            ['components', \&_validate_components],
+        ],
+        source   => $self->sbom_spec,
+    );
+
     return $self;
 }
 
@@ -52,29 +67,14 @@ sub _add_error ( $self, $error ) {
 
 # Yes, this should use a JSON validator, but we need it to be lightweight
 # and not require any non-core modules.
-sub _validate_sbom ($self) {
-    my @required = (
-        [ 'bomFormat',   'CycloneDX' ],
-        [ 'specVersion', '1.5' ],
-        [ 'version',     qr/^[1-9][0-9]*$/ ],
-    );
-    foreach my $required (@required) {
+sub _validate ($self, %arg_for) {
+    foreach my $key (@{ $arg_for{keys} }) {
         $self->_validate_key(
-            inspect  => $self->sbom_spec,
-            key      => $required->[0],
-            required => 1,
-            matches  => $required->[1],
-        );
-    }
-
-    my @optional = (
-        [ 'components', \&_validate_components ],
-    );
-    foreach my $optional (@optional) {
-        $self->_validate_key(
-            inspect => $self->sbom_spec,
-            key     => $optional->[0],
-            matches => $optional->[1],
+            inspect  => $arg_for{source},
+            required => $arg_for{required},
+            key      => $key->[0],
+            matches  => $key->[1],
+            name     => $key->[2],
         );
     }
 }
@@ -118,16 +118,29 @@ sub _validate_components ( $self, $components ) {
         return;
     }
     foreach my $component (@$components) {
-        $self->_validate_key(
-            inspect  => $component,
-            key      => 'type',
-            name     => 'component.type',
-            required => 1,
-            matches  => [
-                "application",            "framework", "library", "container", "platform", "operating-system", "device", "device-driver", "firmware", "file",
-                "machine-learning-model", "data",
+        $self->_validate(
+            keys => [
+                [   'type',
+                    [   "application", "framework", "library", "container", "platform", "operating-system", "device", "device-driver", "firmware", "file",
+                        "machine-learning-model", "data",
+                    ],
+                    'component.type'
+                ],
+                [ 'name', qr/\S/, 'component.name' ],
             ],
+            required => 1,
+            source   => $component,
         );
+        $self->_validate(
+            keys => [
+                [ 'version',   qr/\S/,                          'component.version' ],     # version not enforced
+                [ 'mime-type', qr{^[-+a-z0-9.]+/[-+a-z0-9.]+$}, 'component.mime-type' ],
+            ],
+            source => $component,
+        );
+        if ( exists $component->{modified} ) {
+            $self->_add_error('component.modified is deprecated and should not be used.');
+        }
     }
 }
 
@@ -150,3 +163,6 @@ __END__
 
 This module parses CycloneDX Software Bill of Materials (SBOMs), version 1.5
 JSON. It is a work in progress.
+
+Eventually earlier versions will be supported, but for now, trying to get it
+working and seeing how the design evolves.
