@@ -74,6 +74,14 @@ sub _initialize ( $self, %arg_for ) {
         source => $self->sbom_spec,
     );
 
+    if ( $self->has_warnings ) {
+        # note: currenty the only warnings is about the deprected 'modified' field
+        warn "Warnings:\n";
+        foreach my $warning ( $self->warnings ) {
+            warn "  $warning\n";
+        }
+    }
+
     return $self;
 }
 
@@ -91,6 +99,10 @@ sub _add_error ( $self, $error ) {
 
 sub warnings ($self) {
     return @{ $self->{warnings} };
+}
+
+sub has_warnings ($self) {
+    return !!@{ $self->{warnings} };
 }
 
 sub _add_warning ( $self, $warning ) {
@@ -245,6 +257,8 @@ __END__
 =head1 SYNOPSIS
 
         my $parser = CycloneDX::Parser->new( json => $file );
+        # or
+        my $parser = CycloneDX::Parser->new( json_string => $json_string );
         if ( $parser->is_valid ) {
             my $data = $parser->sbom_spec;
         }
