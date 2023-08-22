@@ -43,17 +43,34 @@ sub _initialize ( $self, %arg_for ) {
     }
     $self->{source}        = $filename;
     $self->{json}          = decode_json($json_string);    # the JSON as a Perl structure
-    $self->{errors}        = [];                           # accumulate errors
-    $self->{warnings}      = [];                           # accumulate warnings
-    $self->{stack}         = [];                           # track the current location in the JSON
-    $self->{bom_refs_seen} = {};                           # track bom-ref ids to ensure they are unique
+    $self->validate;
+
+    if ( $self->has_warnings ) {
+
+        # note: currenty the only warnings is about the deprected 'modified' field
+        warn "Warnings:\n";
+        foreach my $warning ( $self->warnings ) {
+            warn "  $warning\n";
+        }
+    }
+
+    return $self;
+}
+
+sub validate ($self) {
+    # make sure theyse are empty before we start validation.
+    $self->{errors}        = [];    # accumulate errors
+    $self->{warnings}      = [];    # accumulate warnings
+    $self->{stack}         = [];    # track the current location in the JSON
+    $self->{bom_refs_seen} = {};    # track bom-ref ids to ensure they are unique
+
     $self->_validate(
         keys => [
             [ 'bomFormat',   is_string('CycloneDX') ],
             [ 'specVersion', is_string('1.5') ],
         ],
         required => 1,
-        source   => $self->sbom_spec,
+        source   => $self->sbom_data,
     );
     $self->_validate(
         keys => [
@@ -71,19 +88,8 @@ sub _initialize ( $self, %arg_for ) {
                                                                                                                           # properties
                                                                                                                           # signature
         ],
-        source => $self->sbom_spec,
+        source => $self->sbom_data,
     );
-
-    if ( $self->has_warnings ) {
-
-        # note: currenty the only warnings is about the deprected 'modified' field
-        warn "Warnings:\n";
-        foreach my $warning ( $self->warnings ) {
-            warn "  $warning\n";
-        }
-    }
-
-    return $self;
 }
 
 sub is_valid ($self) {
@@ -110,7 +116,7 @@ sub _add_warning ( $self, $warning ) {
     push @{ $self->{warnings} }, $warning;
 }
 
-sub sbom_spec ($self) {
+sub sbom_data ($self) {
     return $self->{json};
 }
 
@@ -261,14 +267,10 @@ __END__
         # or
         my $parser = CycloneDX::Parser->new( json_string => $json_string );
         if ( $parser->is_valid ) {
-            my $data = $parser->sbom_spec;
+            my $data = $parser->sbom_data;
         }
         else {
             my @errors = $parser->errors;
-            ...
-        }
-        # warnings aren't critical, so they won't mark the SBOM as invalid
-        if ( my @warnings = $parser->warnings ) {
             ...
         }
 
@@ -297,7 +299,38 @@ designed to be easily audited.
 =head2 new
 
         my $parser = CycloneDX::Parser->new( json => $file );
+        # or
+        my $parser = CycloneDX::Parser->new( json_string => $json_string );
 
 Creates a new parser object. The only argument is a hashref with a single key.
 Thay key is C<json> and the value is the JSON file to parse. If you wish to
 pass in raw JSON instead of a file, use the C<json_string> key instead.
+
+=head2 is_valid
+
+        if ( $parser->is_valid ) {
+            ...
+        }
+
+Returns true if the SBOM is valid (warnings are OK, but errors means it's invalid).
+
+=head2 errors
+
+        my @errors = $parser->errors;
+
+Returns a list of errors as printable strings. If the SBOM is valid, the list
+will be empty.
+
+=head2 warnings
+
+        my @warnings = $parser->warnings;
+
+Returns a list of warnings as printable strings. If there are no warnings, the
+list will be empty.
+
+=head2 sbom_data
+
+        my $data = $parser->sbom_data;
+
+Returns a hashref of the SBOM data I<as_is>. Note that this is mutable, so changing the data
+means you should call C<< $self->validate >> again.
