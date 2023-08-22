@@ -49,6 +49,17 @@ sub _initialize ( $self, %arg_for ) {
     $self->_validate(
         keys => [
             [ 'components', \&_validate_components ],
+            ['serialNumber', is_string(qr/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/) ],
+            # metadata
+            # services
+            # dependencies
+            # externalReferences
+            # properties
+            # vulnerabilities
+            # annotations
+            # formulation
+            # properties
+            # signature
         ],
         source => $self->sbom_spec,
     );
@@ -146,8 +157,18 @@ sub _validate_components ( $self, $components ) {
             keys => [
                 [   'type',
                     is_string(
-                        [   "application", "framework", "library", "container", "platform", "operating-system", "device", "device-driver", "firmware", "file",
-                            "machine-learning-model", "data",
+                        [   "application",
+                            "framework",
+                            "library",
+                            "container",
+                            "platform",
+                            "operating-system",
+                            "device",
+                            "device-driver",
+                            "firmware",
+                            "file",
+                            "machine-learning-model",
+                            "data",
                         ]
                     ),
                 ],

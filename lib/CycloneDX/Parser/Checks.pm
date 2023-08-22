@@ -72,6 +72,36 @@ sub is_string ($matching) {
     };
 }
 
+=head2 C<is_arrayref>
+
+Returns a sub that will check that the value is an array reference.
+
+=cut
+
+sub is_arrayref ($parser, $value) {
+    my $name = $parser->_stack;
+    if ( 'ARRAY' ne ref $value ) {
+        $parser->_add_error("Value $name must be an array reference, not a " . ref($value));
+        return;
+    }
+    return 1;
+}
+
+=head2 C<is_object>
+
+Returns a sub that will check that the value is a hash reference.
+
+=cut
+
+sub is_object ($parser, $value) {
+    my $name = $parser->_stack;
+    if ( 'HASH' ne ref $value ) {
+        $parser->_add_error("Value $name must be an object, not a " . ref($value));
+        return;
+    }
+    return 1;
+}
+
 =head2 C<any_string>
 
 Returns a sub that will check that the value is a string. Contents of the

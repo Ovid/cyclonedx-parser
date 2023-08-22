@@ -95,7 +95,7 @@ sub invalid_files {
         't/data/1.5/valid-service-empty-objects-1.5.json'    => "",
         't/data/1.5/invalid-component-swid-1.5.json'         => "",
         't/data/1.5/invalid-issue-type-1.5.json'             => "",
-        't/data/1.5/invalid-serialnumber-1.5.json'           => "",
+        't/data/1.5/invalid-serialnumber-1.5.json'           => "Invalid serialNumber. Must match '[^']+', not 'urn:uuid:3e671687-395b-41f5-a30f'",
         't/data/1.5/valid-component-types-1.5.json'          => "",
         't/data/1.5/valid-license-licensing-1.5.json'        => "",
         't/data/1.5/valid-metadata-tool-1.5.json'            => "",
