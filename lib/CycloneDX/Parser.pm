@@ -21,8 +21,8 @@ sub new ( $class, %arg_for ) {
 }
 
 sub _initialize ( $self, %arg_for ) {
-    my $json     = $arg_for{json};
-    my $json_string     = $arg_for{json_string};
+    my $json        = $arg_for{json};
+    my $json_string = $arg_for{json_string};
 
     if ( $json && $json_string ) {
         my $class = ref $self;
@@ -30,7 +30,7 @@ sub _initialize ( $self, %arg_for ) {
     }
 
     my $filename = $json;
-    if ( $json_string ) {
+    if ($json_string) {
         undef $filename;
     }
     if ( ref $json ) {
@@ -43,10 +43,10 @@ sub _initialize ( $self, %arg_for ) {
     }
     $self->{source}        = $filename;
     $self->{json}          = decode_json($json_string);    # the JSON as a Perl structure
-    $self->{errors}        = [];                    # accumulate errors
-    $self->{warnings}      = [];                    # accumulate warnings
-    $self->{stack}         = [];                    # track the current location in the JSON
-    $self->{bom_refs_seen} = {};                    # track bom-ref ids to ensure they are unique
+    $self->{errors}        = [];                           # accumulate errors
+    $self->{warnings}      = [];                           # accumulate warnings
+    $self->{stack}         = [];                           # track the current location in the JSON
+    $self->{bom_refs_seen} = {};                           # track bom-ref ids to ensure they are unique
     $self->_validate(
         keys => [
             [ 'bomFormat',   is_string('CycloneDX') ],
@@ -57,24 +57,25 @@ sub _initialize ( $self, %arg_for ) {
     );
     $self->_validate(
         keys => [
-            [ 'components', \&_validate_components ],
-            ['serialNumber', is_string(qr/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/) ],
-            [ 'version',     is_string(qr/^[1-9][0-9]*$/) ], # optional after 1.4
-            # metadata
-            # services
-            # dependencies
-            # externalReferences
-            # properties
-            # vulnerabilities
-            # annotations
-            # formulation
-            # properties
-            # signature
+            [ 'components',   \&_validate_components ],
+            [ 'serialNumber', is_string(qr/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/) ],
+            [ 'version',      is_string(qr/^[1-9][0-9]*$/) ],                                                             # optional after 1.4
+                                                                                                                          # metadata
+                                                                                                                          # services
+                                                                                                                          # dependencies
+                                                                                                                          # externalReferences
+                                                                                                                          # properties
+                                                                                                                          # vulnerabilities
+                                                                                                                          # annotations
+                                                                                                                          # formulation
+                                                                                                                          # properties
+                                                                                                                          # signature
         ],
         source => $self->sbom_spec,
     );
 
     if ( $self->has_warnings ) {
+
         # note: currenty the only warnings is about the deprected 'modified' field
         warn "Warnings:\n";
         foreach my $warning ( $self->warnings ) {
