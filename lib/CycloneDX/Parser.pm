@@ -58,12 +58,15 @@ sub _initialize ( $self, %arg_for ) {
 }
 
 sub validate ($self) {
+
     # make sure theyse are empty before we start validation.
     $self->{errors}        = [];    # accumulate errors
     $self->{warnings}      = [];    # accumulate warnings
     $self->{stack}         = [];    # track the current location in the JSON
     $self->{bom_refs_seen} = {};    # track bom-ref ids to ensure they are unique
 
+    # for 1.5, these are the only required fields. `version` is no longer required
+    # because if it's missing, it has an optional value of 1.
     $self->_validate(
         keys => [
             [ 'bomFormat',   is_string('CycloneDX') ],
@@ -76,17 +79,24 @@ sub validate ($self) {
         keys => [
             [ 'components',   \&_validate_components ],
             [ 'serialNumber', is_string(qr/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/) ],
-            [ 'version',      is_string(qr/^[1-9][0-9]*$/) ],                                                             # optional after 1.4
-                                                                                                                          # metadata
-                                                                                                                          # services
-                                                                                                                          # dependencies
-                                                                                                                          # externalReferences
-                                                                                                                          # properties
-                                                                                                                          # vulnerabilities
-                                                                                                                          # annotations
-                                                                                                                          # formulation
-                                                                                                                          # properties
-                                                                                                                          # signature
+            [ 'version',      is_string(qr/^[1-9][0-9]*$/) ],
+            [   'metadata',
+                is_object(
+                    [ 'timestamp', is_string(qr/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\+\d\d:\d\d)?Z?$/) ]
+                    # lifecycles
+                )
+            ],
+
+            # metadata
+            # services
+            # dependencies
+            # externalReferences
+            # properties
+            # vulnerabilities
+            # annotations
+            # formulation
+            # properties
+            # signature
         ],
         source => $self->sbom_data,
     );
@@ -129,7 +139,9 @@ sub _pop_stack ($self) {
 }
 
 sub _stack ($self) {
-    return join '.', @{ $self->{stack} };
+    my $stack = join '.', @{ $self->{stack} };
+    $stack = "<unknown>" if !length $stack;
+    return $stack;
 }
 
 # Yes, this should use a JSON validator, but we need it to be lightweight

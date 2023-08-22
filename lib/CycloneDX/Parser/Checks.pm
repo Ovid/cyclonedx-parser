@@ -14,12 +14,14 @@ our @EXPORT_OK = qw(
   any_string
   is_string
   non_empty_string
+  is_object
 );
 our %EXPORT_TAGS = ( all => \@EXPORT_OK );
 
-# Some of these will not take the $parser argument, but it's easier to have
-# them all the same. Because this is core, we're using exported subs as "poor
-# man roles"
+# Because this is core, we're using exported subs as "poor man roles"
+#
+# Guidelines: C<croak()> if the error in our add code. Use C<_add_error> if
+# the error is in their SBOM data.
 
 =head2 C<is_string($thing)>
 
@@ -47,8 +49,7 @@ sub is_string ($matching) {
 
         my $name = $parser->_stack;
         if ( my $ref = ref $value ) {
-            $parser->_add_error("Value $name must be a string, not a $ref'");
-            return;
+            croak("Value $name must be a string, not a $ref'");
         }
 
         if ( !ref $matching ) {
@@ -72,34 +73,29 @@ sub is_string ($matching) {
     };
 }
 
-=head2 C<is_arrayref>
-
-Returns a sub that will check that the value is an array reference.
-
-=cut
-
-sub is_arrayref ($parser, $value) {
-    my $name = $parser->_stack;
-    if ( 'ARRAY' ne ref $value ) {
-        $parser->_add_error("Value $name must be an array reference, not a " . ref($value));
-        return;
+sub is_object (@matching) {
+    if ( @matching != grep { 'ARRAY' eq ref $_ } @matching ) {
+        croak("is_object must be passed a list of arrayrefs");
     }
-    return 1;
-}
 
-=head2 C<is_object>
+    return sub ( $parser, $value ) {
 
-Returns a sub that will check that the value is a hash reference.
+        # if errors are reported, this curious little construct will make sure
+        # that the error is reported with the correct sub name, not "ANON"
+        local *__ANON__ = 'is_object';
+        my $name = $parser->_stack;
 
-=cut
+        if ( 'HASH' ne ref $value ) {
+            $parser->_add_error("$name: Value $name must be an object, not a " . ref($value));
+            return;
+        }
 
-sub is_object ($parser, $value) {
-    my $name = $parser->_stack;
-    if ( 'HASH' ne ref $value ) {
-        $parser->_add_error("Value $name must be an object, not a " . ref($value));
-        return;
+        $parser->_validate(
+            keys => \@matching,
+            source => $value,
+            # XXX how to handle required?
+        );
     }
-    return 1;
 }
 
 =head2 C<any_string>
