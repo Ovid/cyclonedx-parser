@@ -11,7 +11,9 @@ use Digest::Sha 'sha1_hex', 'sha256_hex', 'sha384_hex', 'sha512_hex';
 
 use parent 'Exporter';
 our @EXPORT_OK = qw(
+  any_string
   is_string
+  non_empty_string
 );
 our %EXPORT_TAGS = ( all => \@EXPORT_OK );
 
@@ -42,7 +44,13 @@ sub is_string ($matching) {
         # if errors are reported, this curious little construct will make sure
         # that the error is reported with the correct sub name, not "ANON"
         local *__ANON__ = 'is_string';
+
         my $name = $parser->_stack;
+        if ( my $ref = ref $value ) {
+            $parser->_add_error("Value $name must be a string, not a $ref'");
+            return;
+        }
+
         if ( !ref $matching ) {
             if ( $value ne $matching ) {
                 $parser->_add_error("Invalid $name. Must be '$matching', not '$value'");
@@ -62,6 +70,28 @@ sub is_string ($matching) {
             croak "Invalid matching type for is_string: $matching";
         }
     };
+}
+
+=head2 C<any_string>
+
+Returns a sub that will check that the value is a string. Contents of the
+string do not matter.
+
+=cut
+
+sub any_string () {
+    return is_string(qr/./);
+}
+
+=head2 C<non_empty_string>
+
+Returns a sub that will check that the value is a string and that it contains
+at least one non-whitespace character.
+
+=cut
+
+sub non_empty_string () {
+    return is_string(qr/\S/);
 }
 
 1;

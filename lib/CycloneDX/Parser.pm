@@ -156,14 +156,19 @@ sub _validate_components ( $self, $components ) {
         );
         $self->_validate(
             keys => [
-                [ 'version',     is_string(qr/\S/) ],                               # version not enforced
+                [ 'version',     non_empty_string ],                                # version not enforced
                 [ 'mime-type',   is_string( qr{^[-+a-z0-9.]+/[-+a-z0-9.]+$}, ) ],
-                [ 'bom-ref',     is_string(qr/\S/) ],
-                [ 'author',      is_string(qr/./) ],
-                [ 'publisher',   is_string(qr/./) ],
-                [ 'group',       is_string(qr/./) ],
-                [ 'description', is_string(qr/./) ],
+                [ 'bom-ref',     non_empty_string ],
+                [ 'author',      any_string ],
+                [ 'publisher',   any_string ],
+                [ 'group',       any_string ],
+                [ 'description', any_string ],
                 [ 'scope',       is_string( [qw/required optional excluded/] ) ],
+                [ 'copyright',   any_string ],
+
+                #[ 'cpe',         is_string ],
+                #[ 'purl',        is_string ],
+                #[ 'swid',        is_string ],
             ],
             source => $component,
         );
@@ -184,7 +189,8 @@ sub _validate_components ( $self, $components ) {
         }
 
         # supplier is an object
-        #
+        # hashes is an array of objects
+        # licenses is an array of objects
         $self->_pop_stack;
     }
 }
