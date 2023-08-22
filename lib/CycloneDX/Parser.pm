@@ -21,17 +21,21 @@ sub new ( $class, %arg_for ) {
 
 sub _initialize ( $self, %arg_for ) {
     my $json = $arg_for{json} or croak 'No JSON provided';
+    my $filename = $json;
     if ( ref $json ) {
         $json = $$json;
+        undef $filename;
     }
     else {
         open my $fh, '<', $json or croak "Can't open $json: $!";
         $json = do { local $/; <$fh> };
     }
-    $self->{json}          = decode_json($json);
-    $self->{errors}        = [];
-    $self->{stack}         = [];
-    $self->{bom_refs_seen} = {};
+    $self->{source}         = $filename || $json;
+    $self->{json}          = decode_json($json); # the JSON as a Perl structure
+    $self->{errors}        = []; # accumulate errors
+    $self->{warnings}      = []; # accumulate warnings
+    $self->{stack}         = []; # track the current location in the JSON
+    $self->{bom_refs_seen} = {}; # track bom-ref ids to ensure they are unique
     $self->_validate(
         keys => [
             [ 'bomFormat',   'CycloneDX' ],
@@ -59,12 +63,20 @@ sub errors ($self) {
     return @{ $self->{errors} };
 }
 
-sub sbom_spec ($self) {
-    return $self->{json};
-}
-
 sub _add_error ( $self, $error ) {
     push @{ $self->{errors} }, $error;
+}
+
+sub warnings ($self) {
+    return @{ $self->{warnings} };
+}
+
+sub _add_warning ( $self, $warning ) {
+    push @{ $self->{warnings} }, $warning;
+}
+
+sub sbom_spec ($self) {
+    return $self->{json};
 }
 
 sub _push_stack ( $self, $name ) {
@@ -173,7 +185,7 @@ sub _validate_components ( $self, $components ) {
         }
 
         if ( exists $component->{modified} ) {
-            $self->_add_error('$name.modified is deprecated and should not be used.');
+            $self->_add_warning('$name.modified is deprecated and should not be used.');
         }
         $self->_pop_stack;
     }
