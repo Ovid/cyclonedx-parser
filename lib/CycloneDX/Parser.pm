@@ -5,11 +5,12 @@ package CycloneDX::Parser;
 use v5.14.0;
 use strict;
 use warnings;
-use feature 'signatures';
-no warnings 'experimental::signatures';
+use experimental 'signatures';
 
 use Carp 'croak';
 use JSON::PP 'decode_json';
+
+use CycloneDX::Parser::Checks ':all';
 
 our $VERSION = '0.01';
 
@@ -20,7 +21,7 @@ sub new ( $class, %arg_for ) {
 }
 
 sub _initialize ( $self, %arg_for ) {
-    my $json = $arg_for{json} or croak 'No JSON provided';
+    my $json     = $arg_for{json} or croak 'No JSON provided';
     my $filename = $json;
     if ( ref $json ) {
         $json = $$json;
@@ -30,17 +31,17 @@ sub _initialize ( $self, %arg_for ) {
         open my $fh, '<', $json or croak "Can't open $json: $!";
         $json = do { local $/; <$fh> };
     }
-    $self->{source}         = $filename || $json;
-    $self->{json}          = decode_json($json); # the JSON as a Perl structure
-    $self->{errors}        = []; # accumulate errors
-    $self->{warnings}      = []; # accumulate warnings
-    $self->{stack}         = []; # track the current location in the JSON
-    $self->{bom_refs_seen} = {}; # track bom-ref ids to ensure they are unique
+    $self->{source}        = $filename || $json;
+    $self->{json}          = decode_json($json);    # the JSON as a Perl structure
+    $self->{errors}        = [];                    # accumulate errors
+    $self->{warnings}      = [];                    # accumulate warnings
+    $self->{stack}         = [];                    # track the current location in the JSON
+    $self->{bom_refs_seen} = {};                    # track bom-ref ids to ensure they are unique
     $self->_validate(
         keys => [
-            [ 'bomFormat',   'CycloneDX' ],
-            [ 'specVersion', '1.5' ],
-            [ 'version',     qr/^[1-9][0-9]*$/ ],
+            [ 'bomFormat',   is_string('CycloneDX') ],
+            [ 'specVersion', is_string('1.5') ],
+            [ 'version',     is_string(qr/^[1-9][0-9]*$/) ],
         ],
         required => 1,
         source   => $self->sbom_spec,
@@ -116,22 +117,7 @@ sub _validate_key ( $self, %arg_for ) {
         return;
     }
     my $value = $data->{$key};
-    if ( !ref $matches ) {
-        if ( $value ne $matches ) {
-            $self->_add_error("Invalid $name. Must be '$matches', not '$value'");
-        }
-    }
-    elsif ( ref $matches eq 'Regexp' ) {
-        if ( $value !~ $matches ) {
-            $self->_add_error("Invalid $name. Must match '$matches', not '$value'");
-        }
-    }
-    elsif ( ref $matches eq 'ARRAY' ) {
-        if ( !grep { $_ eq $value } @$matches ) {
-            $self->_add_error("Invalid $name. Must be one of '@$matches', not '$value'");
-        }
-    }
-    elsif ( ref $matches eq 'CODE' ) {
+    if ( ref $matches eq 'CODE' ) {
         $self->$matches($value);
     }
     else {
@@ -157,20 +143,27 @@ sub _validate_components ( $self, $components ) {
         $self->_validate(
             keys => [
                 [   'type',
-                    [   "application", "framework", "library", "container", "platform", "operating-system", "device", "device-driver", "firmware", "file",
-                        "machine-learning-model", "data",
-                    ],
+                    is_string(
+                        [   "application", "framework", "library", "container", "platform", "operating-system", "device", "device-driver", "firmware", "file",
+                            "machine-learning-model", "data",
+                        ]
+                    ),
                 ],
-                [ 'name', qr/\S/ ],
+                [ 'name', is_string(qr/\S/) ],
             ],
             required => 1,
             source   => $component,
         );
         $self->_validate(
             keys => [
-                [ 'version',   qr/\S/, ],                            # version not enforced
-                [ 'mime-type', qr{^[-+a-z0-9.]+/[-+a-z0-9.]+$}, ],
-                [ 'bom-ref',   qr/\S/ ],
+                [ 'version',     is_string(qr/\S/) ],                               # version not enforced
+                [ 'mime-type',   is_string( qr{^[-+a-z0-9.]+/[-+a-z0-9.]+$}, ) ],
+                [ 'bom-ref',     is_string(qr/\S/) ],
+                [ 'author',      is_string(qr/./) ],
+                [ 'publisher',   is_string(qr/./) ],
+                [ 'group',       is_string(qr/./) ],
+                [ 'description', is_string(qr/./) ],
+                [ 'scope',       is_string( [qw/required optional excluded/] ) ],
             ],
             source => $component,
         );
@@ -182,11 +175,16 @@ sub _validate_components ( $self, $components ) {
             if ( $self->_bom_ref_seen( $component->{'bom-ref'} ) ) {
                 $self->_add_error( sprintf "$name.bom-ref: Duplicate bom-ref '%s'", $component->{'bom-ref'} );
             }
+
+            # XXX later, we'll have more validation
         }
 
         if ( exists $component->{modified} ) {
             $self->_add_warning('$name.modified is deprecated and should not be used.');
         }
+
+        # supplier is an object
+        #
         $self->_pop_stack;
     }
 }

@@ -88,7 +88,7 @@ sub invalid_files {
             "Invalid components.2.bom-ref. Must match .*?, not ''",
         ],
         't/data/1.5/invalid-hash-sha512-1.5.json'            => "",
-        't/data/1.5/invalid-scope-1.5.json'                  => "",
+        't/data/1.5/invalid-scope-1.5.json'                  => "Invalid components.0.scope. Must be one of 'excluded optional required', not 'foo'",
         't/data/1.5/valid-component-swid-full-1.5.json'      => "",
         't/data/1.5/valid-license-id-1.5.json'               => "",
         't/data/1.5/valid-metadata-timestamp-1.5.json'       => "",
