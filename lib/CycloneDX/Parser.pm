@@ -94,6 +94,8 @@ sub _stack ($self) {
 
 # Yes, this should use a JSON validator, but we need it to be lightweight
 # and not require any non-core modules.
+# Also, "No additional properties" is hard to properly handle until we have
+# the full list of properties included.
 sub _validate ( $self, %arg_for ) {
     foreach my $key ( @{ $arg_for{keys} } ) {
         $self->_push_stack( $key->[0] );
