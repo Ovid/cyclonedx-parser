@@ -21,18 +21,28 @@ sub new ( $class, %arg_for ) {
 }
 
 sub _initialize ( $self, %arg_for ) {
-    my $json     = $arg_for{json} or croak 'No JSON provided';
+    my $json     = $arg_for{json};
+    my $json_string     = $arg_for{json_string};
+
+    if ( $json && $json_string ) {
+        my $class = ref $self;
+        croak "You must specify only one of 'json' and 'json_string' when contructing a $class";
+    }
+
     my $filename = $json;
+    if ( $json_string ) {
+        undef $filename;
+    }
     if ( ref $json ) {
         $json = $$json;
         undef $filename;
     }
     else {
         open my $fh, '<', $json or croak "Can't open $json: $!";
-        $json = do { local $/; <$fh> };
+        $json_string = do { local $/; <$fh> };
     }
-    $self->{source}        = $filename || $json;
-    $self->{json}          = decode_json($json);    # the JSON as a Perl structure
+    $self->{source}        = $filename;
+    $self->{json}          = decode_json($json_string);    # the JSON as a Perl structure
     $self->{errors}        = [];                    # accumulate errors
     $self->{warnings}      = [];                    # accumulate warnings
     $self->{stack}         = [];                    # track the current location in the JSON
@@ -41,7 +51,6 @@ sub _initialize ( $self, %arg_for ) {
         keys => [
             [ 'bomFormat',   is_string('CycloneDX') ],
             [ 'specVersion', is_string('1.5') ],
-            [ 'version',     is_string(qr/^[1-9][0-9]*$/) ],
         ],
         required => 1,
         source   => $self->sbom_spec,
@@ -50,6 +59,7 @@ sub _initialize ( $self, %arg_for ) {
         keys => [
             [ 'components', \&_validate_components ],
             ['serialNumber', is_string(qr/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/) ],
+            [ 'version',     is_string(qr/^[1-9][0-9]*$/) ], # optional after 1.4
             # metadata
             # services
             # dependencies
@@ -242,6 +252,11 @@ __END__
             my @errors = $parser->errors;
             ...
         }
+        # warnings aren't critical, so they won't mark the SBOM as invalid
+        if ( my @warnings = $parser->warnings ) {
+            ...
+        }
+
 
 =head1 DESCRIPTION
 
@@ -249,4 +264,25 @@ This module parses CycloneDX Software Bill of Materials (SBOMs), version 1.5
 JSON. It is a work in progress.
 
 Eventually earlier versions will be supported, but for now, trying to get it
-working and seeing how the design evolves.
+working and seeing how the design evolves. The code is written with core Perl
+because with the upcoming Cyber Security Act (CRA) in the EU, L<open-source
+code may become a
+liability|https://devops.com/the-cyber-resilience-act-threatens-the-future-of-open-source/>
+for many companies. By starting to build out programmatically discoverable
+Software Bill of Materials (or SBOMs), we can make it easier for companies to
+comply with the CRA.
+
+Non-compliance with CRA can mean fines for companies of €15 million, or 2.5%
+of global revenue, whichever is higher.  This will give many companies a
+I<major> incentive to avoid using open-source, since much of it is not
+designed to be easily audited.
+
+=head1 METHODS
+
+=head2 new
+
+        my $parser = CycloneDX::Parser->new( json => $file );
+
+Creates a new parser object. The only argument is a hashref with a single key.
+Thay key is C<json> and the value is the JSON file to parse. If you wish to
+pass in raw JSON instead of a file, use the C<json_string> key instead.
