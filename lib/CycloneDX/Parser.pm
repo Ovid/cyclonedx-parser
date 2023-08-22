@@ -165,10 +165,23 @@ sub _validate_components ( $self, $components ) {
                 [ 'description', any_string ],
                 [ 'scope',       is_string( [qw/required optional excluded/] ) ],
                 [ 'copyright',   any_string ],
+                [ 'cpe',         any_string ],                                      # dont' have great info on matching a "well-formed CPE string"
+                    # See # https://metacpan.org/dist/URI-PackageURL/source/lib/URI/PackageURL.pm # for purl
+                [ 'purl',       is_string(qr{^pkg:[A-Za-z\\.\\-\\+][A-Za-z0-9\\.\\-\\+]*/.+}) ],
+                [ 'components', \&_validate_components ],                                          # yup, components can take components
 
-                #[ 'cpe',         is_string ],
-                #[ 'purl',        is_string ],
-                #[ 'swid',        is_string ],
+                # supplier is an object
+                # hashes is an array of objects
+                # licenses is an array of objects
+                # externalReferences is an array of objects
+                # data is an array of objects
+                # properties is an array of objects
+                # swid is an object
+                # pedigree is an object
+                # evidence is an object
+                # releaseNotes is an object
+                # modelCard is an object
+                # signature is an object
             ],
             source => $component,
         );
@@ -188,9 +201,6 @@ sub _validate_components ( $self, $components ) {
             $self->_add_warning('$name.modified is deprecated and should not be used.');
         }
 
-        # supplier is an object
-        # hashes is an array of objects
-        # licenses is an array of objects
         $self->_pop_stack;
     }
 }
