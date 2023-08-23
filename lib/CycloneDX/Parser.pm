@@ -154,37 +154,30 @@ sub _stack ($self) {
 # Also, "No additional properties" is hard to properly handle until we have
 # the full list of properties included.
 sub _validate ( $self, %arg_for ) {
-    foreach my $key ( sort keys %{ $arg_for{object} } ) {
-        my $matches = $arg_for{object}->{$key};
-        $self->_push_stack($key);
-        $self->_validate_key(
-            inspect  => $arg_for{source},
-            required => $arg_for{required},
-            key      => $key,
-            matches  => $matches,
-        );
-        $self->_pop_stack;
-    }
-}
+    my $required = $arg_for{required} // [];
+    my $source   = $arg_for{source};
 
-sub _validate_key ( $self, %arg_for ) {
-    my ( $data, $key, $required, $matches ) = @arg_for{qw(inspect key required matches )};
-    $required //= [];
     my %is_required = map { $_ => 1 } @$required;
 
-    my $name = $self->_stack;
-    if ( !exists $data->{$key} ) {
-        if ( $is_required{$key} ) {
-            $self->_add_error("Missing required field '$name'");
+    KEY: foreach my $key ( sort keys %{ $arg_for{object} } ) {
+        my $matches = $arg_for{object}{$key};
+        $self->_push_stack($key);
+        my $name = $self->_stack;
+        if ( !exists $source->{$key} ) {
+            if ( $is_required{$key} ) {
+                $self->_add_error("Missing required field '$name'");
+            }
         }
-        return;
-    }
-    my $value = $data->{$key};
-    if ( ref $matches eq 'CODE' ) {
-        $self->$matches($value);
-    }
-    else {
-        croak "Invalid matches type: $matches";
+        else {
+            my $value = $source->{$key};
+            if ( ref $matches eq 'CODE' ) {
+                $self->$matches($value);
+            }
+            else {
+                croak "Invalid matches type: $matches";
+            }
+        }
+        $self->_pop_stack;
     }
 }
 
