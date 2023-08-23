@@ -41,8 +41,9 @@ sub _initialize ( $self, %arg_for ) {
         open my $fh, '<', $json or croak "Can't open $json: $!";
         $json_string = do { local $/; <$fh> };
     }
-    $self->{source}        = $filename;
-    $self->{json}          = decode_json($json_string);    # the JSON as a Perl structure
+    $self->{filename}  = $filename;                    # the source of the JSON, if file passed
+    $self->{raw_json}  = $json_string;                 # the JSON as a string
+    $self->{sbom_data} = decode_json($json_string);    # the JSON as a Perl structure
     $self->validate;
 
     if ( $self->has_warnings ) {
@@ -68,29 +69,29 @@ sub validate ($self) {
     # for 1.5, these are the only required fields. `version` is no longer required
     # because if it's missing, it has an optional value of 1.
     $self->_validate(
-        keys => [
-            [ 'bomFormat',   is_string('CycloneDX') ],
-            [ 'specVersion', is_string('1.5') ],
-        ],
+        object => {
+            bomFormat   => is_string('CycloneDX'),
+            specVersion => is_string('1.5'),
+        },
         required => 1,
         source   => $self->sbom_data,
     );
     $self->_validate(
-        keys => [
-            [ 'components',   \&_validate_components ],
-            [ 'serialNumber', is_string(qr/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/) ],
-            [ 'version',      is_string(qr/^[1-9][0-9]*$/) ],
-            [   'metadata',
-                is_object(
-                    [ 'timestamp', is_string(qr/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\+\d\d:\d\d)?Z?$/) ],
-                    [   'properties',
-                        is_arrayref_of_objects(
-                            [ 'name',  non_empty_string ], # valid-properties not failing if I put an empty name
-                            [ 'value', non_empty_string ]
-                        ),
-                    ],
-                ),
-            ],
+        object => {
+            components   => \&_validate_components,
+            serialNumber => is_string(qr/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
+            version      => is_string(qr/^[1-9][0-9]*$/),
+            metadata     => is_object(
+                {
+                    timestamp  => is_string(qr/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\+\d\d:\d\d)?Z?$/),
+                    properties => is_arrayref_of_objects(
+                        {
+                            name  => non_empty_string,    # valid-properties not failing if I put an empty name
+                            value => non_empty_string,
+                        }
+                    ),
+                },
+            ),
 
             # lifecycles
             # services
@@ -102,9 +103,13 @@ sub validate ($self) {
             # formulation
             # properties
             # signature
-        ],
+        },
         source => $self->sbom_data,
     );
+}
+
+sub raw_json ($self) {
+    return $self->{raw_json};
 }
 
 sub is_valid ($self) {
@@ -132,7 +137,7 @@ sub _add_warning ( $self, $warning ) {
 }
 
 sub sbom_data ($self) {
-    return $self->{json};
+    return $self->{sbom_data};
 }
 
 sub _push_stack ( $self, $name ) {
@@ -154,13 +159,14 @@ sub _stack ($self) {
 # Also, "No additional properties" is hard to properly handle until we have
 # the full list of properties included.
 sub _validate ( $self, %arg_for ) {
-    foreach my $key ( @{ $arg_for{keys} } ) {
-        $self->_push_stack( $key->[0] );
+    foreach my $key ( sort keys %{ $arg_for{object} } ) {
+        my $matches = $arg_for{object}->{$key};
+        $self->_push_stack($key);
         $self->_validate_key(
             inspect  => $arg_for{source},
             required => $arg_for{required},
-            key      => $key->[0],
-            matches  => $key->[1],
+            key      => $key,
+            matches  => $matches,
         );
         $self->_pop_stack;
     }
@@ -200,44 +206,42 @@ sub _validate_components ( $self, $components ) {
         $self->_push_stack($i);
         my $component = $components->[$i];
         $self->_validate(
-            keys => [
-                [   'type',
-                    is_string(
-                        [   "application",
-                            "framework",
-                            "library",
-                            "container",
-                            "platform",
-                            "operating-system",
-                            "device",
-                            "device-driver",
-                            "firmware",
-                            "file",
-                            "machine-learning-model",
-                            "data",
-                        ]
-                    ),
-                ],
-                [ 'name', is_string(qr/\S/) ],
-            ],
+            object => {
+                name => is_string(qr/\S/),
+                type => is_string(
+                    [   "application",
+                        "framework",
+                        "library",
+                        "container",
+                        "platform",
+                        "operating-system",
+                        "device",
+                        "device-driver",
+                        "firmware",
+                        "file",
+                        "machine-learning-model",
+                        "data",
+                    ]
+                ),
+            },
             required => 1,
             source   => $component,
         );
         $self->_validate(
-            keys => [
-                [ 'version',     non_empty_string ],                                # version not enforced
-                [ 'mime-type',   is_string( qr{^[-+a-z0-9.]+/[-+a-z0-9.]+$}, ) ],
-                [ 'bom-ref',     non_empty_string ],
-                [ 'author',      any_string ],
-                [ 'publisher',   any_string ],
-                [ 'group',       any_string ],
-                [ 'description', any_string ],
-                [ 'scope',       is_string( [qw/required optional excluded/] ) ],
-                [ 'copyright',   any_string ],
-                [ 'cpe',         any_string ],                                      # dont' have great info on matching a "well-formed CPE string"
+            object => {
+                version     => non_empty_string,                                # version not enforced
+                'mime-type' => is_string( qr{^[-+a-z0-9.]+/[-+a-z0-9.]+$}, ),
+                'bom-ref'   => non_empty_string,
+                author      => any_string,
+                publisher   => any_string,
+                group       => any_string,
+                description => any_string,
+                scope       => is_string( [qw/required optional excluded/] ),
+                copyright   => any_string,
+                cpe         => any_string,                                      # dont' have great info on matching a "well-formed CPE string"
                     # See # https://metacpan.org/dist/URI-PackageURL/source/lib/URI/PackageURL.pm # for purl
-                [ 'purl',       is_string(qr{^pkg:[A-Za-z\\.\\-\\+][A-Za-z0-9\\.\\-\\+]*/.+}) ],
-                [ 'components', \&_validate_components ],                                          # yup, components can take components
+                purl       => is_string(qr{^pkg:[A-Za-z\\.\\-\\+][A-Za-z0-9\\.\\-\\+]*/.+}),
+                components => \&_validate_components,                                          # yup, components can take components
 
                 # supplier is an object
                 # hashes is an array of objects
@@ -251,7 +255,7 @@ sub _validate_components ( $self, $components ) {
                 # releaseNotes is an object
                 # modelCard is an object
                 # signature is an object
-            ],
+            },
             source => $component,
         );
 

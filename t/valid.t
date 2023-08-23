@@ -9,6 +9,8 @@ use Test::More;
 use CycloneDX::Parser;
 use File::Basename 'basename';
 
+#use Test2::Plugin::BailOnFail;
+
 my %files = invalid_files();
 foreach my $file ( sort keys %files ) {
     my $reason        = $files{$file};
@@ -18,7 +20,10 @@ foreach my $file ( sort keys %files ) {
         my $name = ref $reason ? $reason->[0] : $reason;
         subtest "$name: $file" => sub {
             ok !$parser->is_valid, "The SBOM should be invalid";
-            has_errors( $parser, $reason );
+            has_errors( $parser, $reason ) or do {
+                diag $parser->raw_json;
+                die "Halting test. Check the JSON";
+            };
         };
     }
     else {
@@ -36,6 +41,8 @@ foreach my $file ( sort keys %files ) {
 sub has_errors ( $parser, $reasons ) {
     my @errors = $parser->errors;
     $reasons = [$reasons] unless 'ARRAY' eq ref $reasons;
+
+    my $passed = 1;
     if ( !@errors ) {
         fail sprintf "Expected errors %s not found because there were no errors", join( ', ', @$reasons );
         return;
@@ -55,11 +62,11 @@ sub has_errors ( $parser, $reasons ) {
                 next ERROR;
             }
         }
-
     }
 
     if ( my $missing_reasons = join "    \n", grep { !$found{reason}{$_} } @$reasons ) {
         fail "Expected errors not found:\n$missing_reasons";
+        $passed = 0;
     }
     @errors = grep { !$found{error}{$_} } @errors;
 
@@ -67,7 +74,9 @@ sub has_errors ( $parser, $reasons ) {
         use Data::Dumper;
         diag Dumper [ $parser->errors ];
         fail "Unexpected errors:\n" . join( "\n", @errors );
+        $passed = 0;
     }
+    return $passed;
 }
 
 done_testing;

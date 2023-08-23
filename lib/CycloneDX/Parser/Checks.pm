@@ -74,9 +74,9 @@ sub is_string ($matching) {
     };
 }
 
-sub is_object (@matching) {
-    if ( @matching != grep { 'ARRAY' eq ref $_ } @matching ) {
-        croak("is_object must be passed a list of arrayrefs");
+sub is_object ($matching) {
+    if ( 'HASH' ne ref $matching ) {
+        croak("is_object must be passed a hashref");
     }
 
     return sub ( $parser, $value ) {
@@ -87,12 +87,12 @@ sub is_object (@matching) {
         my $name = $parser->_stack;
 
         if ( 'HASH' ne ref $value ) {
-            $parser->_add_error("$name: Value $name must be an object, not a " . ref($value));
+            $parser->_add_error( "$name: Value $name must be an object, not a " . ref($value) );
             return;
         }
 
         $parser->_validate(
-            keys   => \@matching,
+            object => $matching,
             source => $value,
 
             # XXX how to handle required?
@@ -100,8 +100,8 @@ sub is_object (@matching) {
     }
 }
 
-sub is_arrayref_of_objects (@matching) {
-    my $is_object = is_object(@matching);
+sub is_arrayref_of_objects ($matching) {
+    my $is_object = is_object($matching);
 
     return sub ( $parser, $value ) {
 
@@ -111,7 +111,7 @@ sub is_arrayref_of_objects (@matching) {
         my $name = $parser->_stack;
 
         if ( 'ARRAY' ne ref $value ) {
-            $parser->_add_error("$name: Value $name must be a array ref, not a " . ref($value));
+            $parser->_add_error( "$name: Value $name must be a array ref, not a " . ref($value) );
             return;
         }
 
