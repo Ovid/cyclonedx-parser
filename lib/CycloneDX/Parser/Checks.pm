@@ -12,9 +12,10 @@ use Digest::Sha 'sha1_hex', 'sha256_hex', 'sha384_hex', 'sha512_hex';
 use parent 'Exporter';
 our @EXPORT_OK = qw(
   any_string
+  is_arrayref_of_objects
+  is_object
   is_string
   non_empty_string
-  is_object
 );
 our %EXPORT_TAGS = ( all => \@EXPORT_OK );
 
@@ -91,10 +92,35 @@ sub is_object (@matching) {
         }
 
         $parser->_validate(
-            keys => \@matching,
+            keys   => \@matching,
             source => $value,
+
             # XXX how to handle required?
         );
+    }
+}
+
+sub is_arrayref_of_objects (@matching) {
+    my $is_object = is_object(@matching);
+
+    return sub ( $parser, $value ) {
+
+        # if errors are reported, this curious little construct will make sure
+        # that the error is reported with the correct sub name, not "ANON"
+        local *__ANON__ = 'is_arrayref_of_objects';
+        my $name = $parser->_stack;
+
+        if ( 'ARRAY' ne ref $value ) {
+            $parser->_add_error("$name: Value $name must be a array ref, not a " . ref($value));
+            return;
+        }
+
+        for my $i ( 0 .. $#$value ) {
+            my $object = $value->[$i];
+            $parser->_push_stack($i);
+            $is_object->( $parser, $object );
+            $parser->_pop_stack;
+        }
     }
 }
 

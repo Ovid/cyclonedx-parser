@@ -82,12 +82,17 @@ sub validate ($self) {
             [ 'version',      is_string(qr/^[1-9][0-9]*$/) ],
             [   'metadata',
                 is_object(
-                    [ 'timestamp', is_string(qr/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\+\d\d:\d\d)?Z?$/) ]
-                    # lifecycles
-                )
+                    [ 'timestamp', is_string(qr/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\+\d\d:\d\d)?Z?$/) ],
+                    [   'properties',
+                        is_arrayref_of_objects(
+                            [ 'name',  non_empty_string ], # valid-properties not failing if I put an empty name
+                            [ 'value', non_empty_string ]
+                        ),
+                    ],
+                ),
             ],
 
-            # metadata
+            # lifecycles
             # services
             # dependencies
             # externalReferences

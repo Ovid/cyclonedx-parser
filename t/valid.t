@@ -125,6 +125,7 @@ sub invalid_files {
         't/data/1.5/valid-evidence-1.5.json'                 => "",
         't/data/1.5/valid-metadata-license-1.5.json'         => "",
         't/data/1.5/valid-properties-1.5.json'               => "",
+        't/data/1.5/invalid-properties-1.5.json'             => "Invalid metadata.properties.0.name. Must match '[^']+', not ''",
         't/data/1.5/invalid-hash-md5-1.5.json'               => "",
         't/data/1.5/invalid-metadata-timestamp-1.5.json'     => "Invalid metadata.timestamp. Must match '[^']+', not '2020-04-13'",
         't/data/1.5/valid-component-hashes-1.5.json'         => "",
