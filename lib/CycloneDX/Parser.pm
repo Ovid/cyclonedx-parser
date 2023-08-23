@@ -70,14 +70,8 @@ sub validate ($self) {
     # because if it's missing, it has an optional value of 1.
     $self->_validate(
         object => {
-            bomFormat   => is_string('CycloneDX'),
-            specVersion => is_string('1.5'),
-        },
-        required => 1,
-        source   => $self->sbom_data,
-    );
-    $self->_validate(
-        object => {
+            bomFormat    => is_string('CycloneDX'),
+            specVersion  => is_string('1.5'),
             components   => \&_validate_components,
             serialNumber => is_string(qr/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
             version      => is_string(qr/^[1-9][0-9]*$/),
@@ -104,7 +98,8 @@ sub validate ($self) {
             # properties
             # signature
         },
-        source => $self->sbom_data,
+        required => [qw( bomFormat specVersion )],
+        source   => $self->sbom_data,
     );
 }
 
@@ -174,9 +169,12 @@ sub _validate ( $self, %arg_for ) {
 
 sub _validate_key ( $self, %arg_for ) {
     my ( $data, $key, $required, $matches ) = @arg_for{qw(inspect key required matches )};
+    $required //= [];
+    my %is_required = map { $_ => 1 } @$required;
+
     my $name = $self->_stack;
     if ( !exists $data->{$key} ) {
-        if ($required) {
+        if ( $is_required{$key} ) {
             $self->_add_error("Missing required field '$name'");
         }
         return;
@@ -221,14 +219,8 @@ sub _validate_components ( $self, $components ) {
                         "file",
                         "machine-learning-model",
                         "data",
-                    ]
+                    ],
                 ),
-            },
-            required => 1,
-            source   => $component,
-        );
-        $self->_validate(
-            object => {
                 version     => non_empty_string,                                # version not enforced
                 'mime-type' => is_string( qr{^[-+a-z0-9.]+/[-+a-z0-9.]+$}, ),
                 'bom-ref'   => non_empty_string,
@@ -256,7 +248,8 @@ sub _validate_components ( $self, $components ) {
                 # modelCard is an object
                 # signature is an object
             },
-            source => $component,
+            required => [qw( name type )],
+            source   => $component,
         );
 
         my $name = $self->_stack;
