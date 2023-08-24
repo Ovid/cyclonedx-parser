@@ -73,7 +73,7 @@ subtest 'is_object' => sub {
     ok $p->is_valid,                                          '... and we should have no errors';
     ok $is_object->( $p, { name => 'foo' } ),                 '... and keys can be optional';
     ok $p->is_valid,                                          '... and we should have no errors';
-    ok !$is_object->( $p, { name => '!!!' } ),                '... but they had better be the right keys';
+    ok !$is_object->( $p, { name => '!!!' } ),                '... but they had better be the right values';
     ok !$p->is_valid,                                         '... and we should have errors';
 
     $p         = parser($json);
@@ -94,6 +94,45 @@ subtest 'is_object' => sub {
     @errors = $p->errors;
     is @errors, 1, '... and we should have one error';
     like $errors[0], qr/Value test must be an object/, '... and the error should be the expected one';
+};
+
+subtest 'is_arrayref_of_objects' => sub {
+    my $object = {
+        color => is_string( [qw/red green blue/] ),
+        name  => is_string(qr/^[a-zA-Z ]+$/),
+    };
+    ok my $is_aoh = is_arrayref_of_objects($object), 'is_arrayref_of_objects($some_hashref) should succeed';
+    is ref $is_aoh, 'CODE', 'is_arrayref_of_objects() should return a subref';
+    my $p = parser($json);
+    ok $is_aoh->( $p, [
+        { color => 'red', name => 'foo' },
+        { color => 'green', name => 'wib ble' },
+
+    ] ), 'is_arrayref_of_objects() should return true if the aoh matches the schema';
+    ok $p->is_valid,                                          '... and we should have no errors';
+    ok $is_aoh->( $p, [{ name => 'foo' }] ),                 '... and keys can be optional';
+    ok $p->is_valid,                                          '... and we should have no errors';
+    ok !$is_aoh->( $p, [{ name => '!!!' }] ),                '... but they had better be the right values';
+    ok !$p->is_valid,                                         '... and we should have errors';
+
+    $p         = parser($json);
+    $is_aoh = is_arrayref_of_objects( $object, ['color'] );
+
+    ok $is_aoh->( $p, [{ color => 'red', name => 'foo' }] ), 'is_arrayref_of_objects() should return true if the hashref value matches the schema';
+    ok $p->is_valid,                                          '... and we should have no errors';
+    ok !$is_aoh->( $p,[ { name => 'foo' } ]),                '... but missing required keys should return false';
+    ok !$p->is_valid,                                         '... and we should have errors';
+    my @errors = $p->errors;
+    is @errors, 1, '... and we should have one error';
+    like $errors[0], qr/Missing required field 'test\.0\.color'/, '... and the error should be the expected one';
+
+    $p         = parser($json);
+    $is_aoh = is_arrayref_of_objects($object);
+    ok !$is_aoh->( $p, 'bar' ), 'is_arrayref_of_objects() should return false if the value does not exactly match';
+    ok !$p->is_valid,              '... and we should have errors';
+    @errors = $p->errors;
+    is @errors, 1, '... and we should have one error';
+    like $errors[0], qr/Value test must be an array ref, not a scalar/, '... and the error should be the expected one';
 };
 
 done_testing;

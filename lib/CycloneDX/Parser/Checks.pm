@@ -115,7 +115,11 @@ sub is_arrayref_of_objects ( $matching, $required = [] ) {
         my $name = $parser->_stack;
 
         if ( 'ARRAY' ne ref $value ) {
-            $parser->_add_error( "$name: Value $name must be a array ref, not a " . ref($value) );
+            my $ref
+              = defined ref $value && ref $value ? ref $value
+              : defined ref $value               ? 'scalar'
+              :                                    'undef';
+            $parser->_add_error( "$name: Value $name must be an array ref, not a $ref");
             return;
         }
 
