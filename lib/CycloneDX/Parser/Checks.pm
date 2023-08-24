@@ -39,8 +39,8 @@ Will croak if <$matching> is not a string, regular expression, or array.
 sub is_string ($matching) {
     if ( 'ARRAY' eq ref $matching ) {
 
-        # make sure we have deterministic results
-        @$matching = sort @$matching;
+        # rewrite it as a hash for faster lookup
+        $matching = { map { $_ => 1 } @$matching };
     }
     return sub ( $parser, $value ) {
 
@@ -65,9 +65,10 @@ sub is_string ($matching) {
                 return;
             }
         }
-        elsif ( ref $matching eq 'ARRAY' ) {
-            if ( !grep { $_ eq $value } @$matching ) {
-                $parser->_add_error("Invalid $name. Must be one of '@$matching', not '$value'");
+        elsif ( ref $matching eq 'HASH' ) {
+            if ( !$matching->{$value} ) {
+                my @matching = sort keys %$matching;
+                $parser->_add_error("Invalid $name. Must be one of '@matching', not '$value'");
                 return;
             }
         }
