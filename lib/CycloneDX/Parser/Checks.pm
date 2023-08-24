@@ -56,21 +56,25 @@ sub is_string ($matching) {
         if ( !ref $matching ) {
             if ( $value ne $matching ) {
                 $parser->_add_error("Invalid $name. Must be '$matching', not '$value'");
+                return;
             }
         }
         elsif ( ref $matching eq 'Regexp' ) {
             if ( $value !~ $matching ) {
                 $parser->_add_error("Invalid $name. Must match '$matching', not '$value'");
+                return;
             }
         }
         elsif ( ref $matching eq 'ARRAY' ) {
             if ( !grep { $_ eq $value } @$matching ) {
                 $parser->_add_error("Invalid $name. Must be one of '@$matching', not '$value'");
+                return;
             }
         }
         else {
             croak "Invalid matching type for is_string: $matching";
         }
+        return 1;
     };
 }
 
