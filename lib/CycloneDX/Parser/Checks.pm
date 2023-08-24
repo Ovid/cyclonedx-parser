@@ -13,6 +13,7 @@ use parent 'Exporter';
 our @EXPORT_OK = qw(
   any_string
   is_arrayref_of_objects
+  is_one_of
   is_object
   is_string
   non_empty_string
@@ -92,7 +93,8 @@ sub is_object ( $matching, $required = [] ) {
         my $name = $parser->_stack;
 
         if ( 'HASH' ne ref $value ) {
-            $parser->_add_error( "$name: Value $name must be an object, not a " . ref($value) );
+            my $ref = _get_type($value);
+            $parser->_add_error( "$name: Value $name must be an object, not a $ref");
             return;
         }
 
@@ -115,10 +117,7 @@ sub is_arrayref_of_objects ( $matching, $required = [] ) {
         my $name = $parser->_stack;
 
         if ( 'ARRAY' ne ref $value ) {
-            my $ref
-              = defined ref $value && ref $value ? ref $value
-              : defined ref $value               ? 'scalar'
-              :                                    'undef';
+            my $ref = _get_type($value);
             $parser->_add_error( "$name: Value $name must be an array ref, not a $ref");
             return;
         }
@@ -129,6 +128,56 @@ sub is_arrayref_of_objects ( $matching, $required = [] ) {
             $parser->_push_stack($i);
             $is_object->( $parser, $object ) or $success = 0;
             $parser->_pop_stack;
+        }
+        return $success;
+    }
+}
+
+sub _get_type ($value) {
+    return
+        defined ref $value && ref $value ? ref $value
+      : defined ref $value               ? 'scalar'
+      :                                    'undef';
+}
+
+
+=head2 C<is_one_of>
+
+    is_one_of(
+        is_object(
+            {
+                color => [qw/ red green blue /],
+                name  => qr/^[a-z]+$/,
+            }
+        ),
+        is_string('Cyberdyne Systems'),
+    );
+
+Returns a sub that will check that the value is one of the things passed to it. Those "things"
+need to be subroutines that return true if the value is valid.
+
+=cut
+
+sub is_one_of (@things) {
+    if ( @things < 2 ) {
+        croak("is_one_of must be passed at least two things");
+    }
+    if ( @things != grep { 'CODE' eq ref $_ } @things ) {
+        croak("is_one_of must be passed only CODE refs");
+    }
+    return sub ($parser, $value) {
+        my $name = $parser->_stack;
+        my $success = 0;
+        THING: for my $thing (@things) {
+            $parser->_stash_error_state;
+            if ($thing->($parser, $value)) {
+                $success = 1;
+            }
+            $parser->_unstash_error_state;
+            last THING if $success;
+        }
+        if (!$success) {
+            $parser->_add_error("Invalid $name. Does not match any of the specified checks");
         }
         return $success;
     }
