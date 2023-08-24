@@ -21,29 +21,26 @@ sub new ( $class, %arg_for ) {
 }
 
 sub _initialize ( $self, %arg_for ) {
-    my $json        = $arg_for{json};
+    my $filename    = $arg_for{json} // '';
     my $json_string = $arg_for{json_string};
 
-    if ( $json && $json_string ) {
+    if ( $filename && $json_string ) {
         my $class = ref $self;
         croak "You must specify only one of 'json' and 'json_string' when contructing a $class";
     }
 
-    my $filename = $json;
-    if ($json_string) {
-        undef $filename;
-    }
-    if ( ref $json ) {
-        $json = $$json;
-        undef $filename;
-    }
-    else {
-        open my $fh, '<', $json or croak "Can't open $json: $!";
+    if ($filename) {
+        open my $fh, '<', $filename or croak "Can't open $filename for reading: $!";
         $json_string = do { local $/; <$fh> };
     }
     $self->{filename}  = $filename;                    # the source of the JSON, if file passed
     $self->{raw_json}  = $json_string;                 # the JSON as a string
-    $self->{sbom_data} = decode_json($json_string);    # the JSON as a Perl structure
+    $self->{sbom_data} = eval {
+        decode_json($json_string);    # the JSON as a Perl structure
+    } or do {
+        croak "Invalid JSON in $filename: $@";
+    };
+
     $self->validate;
 
     if ( $self->has_warnings ) {
