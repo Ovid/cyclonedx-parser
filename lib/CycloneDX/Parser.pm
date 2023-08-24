@@ -146,6 +146,8 @@ sub _stash_error_state ($self) {
         croak "Can't stash error state twice: $stack";
     }
     $error_state->{stashed}  = $self->_stack;
+
+    # shallow copies to avoid referencing
     $error_state->{errors}   = [ @{ $self->{errors} } ];
     $error_state->{warnings} = [ @{ $self->{warnings} } ];
 }
@@ -155,6 +157,8 @@ sub _unstash_error_state ($self) {
     if ( !$error_state->{stashed} ) {
         croak "Can't unstash error state when it hasn't been stashed";
     }
+
+    # shallow copies to avoid referencing
     $self->{errors}         = [ @{ $error_state->{errors} } ];
     $self->{warnings}       = [ @{ $error_state->{warnings} } ];
     $error_state->{stashed} = undef;
