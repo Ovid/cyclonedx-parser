@@ -104,8 +104,8 @@ sub is_object ( $matching, $required = [] ) {
     }
 }
 
-sub is_arrayref_of_objects ($matching) {
-    my $is_object = is_object($matching);
+sub is_arrayref_of_objects ( $matching, $required = [] ) {
+    my $is_object = is_object( $matching, $required );
 
     return sub ( $parser, $value ) {
 
@@ -119,12 +119,14 @@ sub is_arrayref_of_objects ($matching) {
             return;
         }
 
+        my $success = 1;
         for my $i ( 0 .. $#$value ) {
             my $object = $value->[$i];
             $parser->_push_stack($i);
-            $is_object->( $parser, $object );
+            $is_object->( $parser, $object ) or $success = 0;
             $parser->_pop_stack;
         }
+        return $success;
     }
 }
 
