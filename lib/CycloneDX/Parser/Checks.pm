@@ -79,7 +79,7 @@ sub is_string ($matching) {
     };
 }
 
-sub is_object ($matching) {
+sub is_object ( $matching, $required = [] ) {
     if ( 'HASH' ne ref $matching ) {
         croak("is_object must be passed a hashref");
     }
@@ -97,10 +97,9 @@ sub is_object ($matching) {
         }
 
         $parser->_validate(
-            object => $matching,
-            source => $value,
-
-            # XXX how to handle required?
+            object   => $matching,
+            source   => $value,
+            required => $required,
         );
     }
 }

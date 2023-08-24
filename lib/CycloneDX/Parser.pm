@@ -33,10 +33,10 @@ sub _initialize ( $self, %arg_for ) {
         open my $fh, '<', $filename or croak "Can't open $filename for reading: $!";
         $json_string = do { local $/; <$fh> };
     }
-    $self->{filename}  = $filename;                    # the source of the JSON, if file passed
-    $self->{raw_json}  = $json_string;                 # the JSON as a string
+    $self->{filename}  = $filename;       # the source of the JSON, if file passed
+    $self->{json}      = $json_string;    # the JSON as a string
     $self->{sbom_data} = eval {
-        decode_json($json_string);    # the JSON as a Perl structure
+        decode_json($json_string);        # the JSON as a Perl structure
     } or do {
         croak "Invalid JSON in $filename: $@";
     };
@@ -100,8 +100,8 @@ sub validate ($self) {
     );
 }
 
-sub raw_json ($self) {
-    return $self->{raw_json};
+sub json ($self) {
+    return $self->{json};
 }
 
 sub is_valid ($self) {
@@ -156,6 +156,7 @@ sub _validate ( $self, %arg_for ) {
 
     my %is_required = map { $_ => 1 } @$required;
 
+    my @errors = $self->errors;
     KEY: foreach my $key ( sort keys %{ $arg_for{object} } ) {
         my $matches = $arg_for{object}{$key};
         $self->_push_stack($key);
@@ -176,6 +177,12 @@ sub _validate ( $self, %arg_for ) {
         }
         $self->_pop_stack;
     }
+    if ( $self->errors > @errors ) {
+
+        # new errors were found, so we return false
+        return;
+    }
+    return 1;
 }
 
 sub _bom_ref_seen ( $self, $bom_ref ) {
