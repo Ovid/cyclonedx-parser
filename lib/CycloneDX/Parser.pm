@@ -7,7 +7,7 @@ use strict;
 use warnings;
 use experimental 'signatures';
 
-use Carp 'croak';
+use Carp qw(cluck carp croak);
 use JSON::PP 'decode_json';
 
 use CycloneDX::Parser::Checks ':all';
@@ -33,10 +33,16 @@ sub _initialize ( $self, %arg_for ) {
         open my $fh, '<', $filename or croak "Can't open $filename for reading: $!";
         $json_string = do { local $/; <$fh> };
     }
-    $self->{filename}  = $filename;       # the source of the JSON, if file passed
-    $self->{json}      = $json_string;    # the JSON as a string
+    $self->{filename}    = $filename;              # the source of the JSON, if file passed
+    $self->{json}        = $json_string;           # the JSON as a string
+    $self->{debug}       = $arg_for{debug} // 0;
+    $self->{error_state} = {                       # will be used to stash error state from recoverable errors
+        stashed  => undef,                         # have we previously stashed an error?
+        errors   => [],
+        warnings => [],
+    };
     $self->{sbom_data} = eval {
-        decode_json($json_string);        # the JSON as a Perl structure
+        decode_json($json_string);                 # the JSON as a Perl structure
     } or do {
         croak "Invalid JSON in $filename: $@";
     };
@@ -124,6 +130,39 @@ sub sbom_data ($self) {
     return $self->{sbom_data};
 }
 
+sub set_debug_level ( $self, $level ) {
+    $self->{debug} = $level;
+}
+
+sub _stash_error_state ($self) {
+    my $error_state = $self->{error_state};
+    my $stack       = $self->_stack;
+    $self->_debug( 1, "Stashing error state at $stack" );
+    $self->_debug_dump( 1, { error_state => $error_state, errors => $self->{errors}, warnings => $self->{warnings} } );
+    if ( my $stack = $error_state->{stashed} ) {
+
+        # I might want a true stack here and push errors onto
+        # the stack and pop them off as appropriate
+        croak "Can't stash error state twice: $stack";
+    }
+    $error_state->{stashed}  = $self->_stack;
+    $error_state->{errors}   = [ @{ $self->{errors} } ];
+    $error_state->{warnings} = [ @{ $self->{warnings} } ];
+}
+
+sub _unstash_error_state ($self) {
+    my $error_state = $self->{error_state};
+    if ( !$error_state->{stashed} ) {
+        croak "Can't unstash error state when it hasn't been stashed";
+    }
+    $self->{errors}         = [ @{ $error_state->{errors} } ];
+    $self->{warnings}       = [ @{ $error_state->{warnings} } ];
+    $error_state->{stashed} = undef;
+    my $stack = $self->_stack;
+    $self->_debug( 0, "Unstashed error state at $stack" );
+    $self->_debug_dump( 0, { error_state => $error_state, errors => $self->{errors}, warnings => $self->{warnings} } );
+}
+
 sub _add_error ( $self, $error ) {
     push @{ $self->{errors} }, $error;
 }
@@ -133,11 +172,54 @@ sub _add_warning ( $self, $warning ) {
 }
 
 sub _push_stack ( $self, $name ) {
+    if ( $self->_is_debugging ) {
+        my $stack = $self->_stack;
+        $self->_debug( 1, "Pushing $name onto stack: $stack" );
+    }
     push @{ $self->{stack} }, $name;
 }
 
+sub _debug_leader ( $self, $char ) {
+    my $stack = $self->_stack;
+    my $num   = 1 + $stack =~ tr/././;
+    $num *= 2;
+    return $char x $num;
+}
+
 sub _pop_stack ($self) {
-    pop @{ $self->{stack} };
+    my $name = pop @{ $self->{stack} };
+    if ( $self->_is_debugging ) {
+        my $stack = $self->_stack;
+        $self->_debug( 0, "Popped $name off stack: $stack" );
+    }
+}
+
+sub _is_debugging ($self) {
+    return $self->{debug};
+}
+
+sub _debug ( $self, $in, $string ) {
+    return unless $self->_is_debugging;
+    my $leader = $self->_debug_leader( $in ? '>' : '<' );
+    $string = "$leader $string";
+    1 == $self->{debug} ? carp $string : carp $string;
+}
+
+sub _debug_dump ( $self, $in, $data ) {
+    return unless $self->_is_debugging > 1;
+    my $leader = $self->_debug_leader( $in ? '>' : '<' );
+    my $spaces = ' ' x length $leader;
+
+    require Data::Dumper;
+    no warnings 'once';
+    local $Data::Dumper::Terse     = 1;
+    local $Data::Dumper::Indent    = 1;
+    local $Data::Dumper::Sortkeys  = 1;
+    local $Data::Dumper::Quotekeys = 0;
+    $data = Data::Dumper::Dumper($data);
+    $data =~ s/^/$spaces /mg;
+    $data =~ s/$spaces/$leader/;
+    carp $data;
 }
 
 sub _stack ($self) {
