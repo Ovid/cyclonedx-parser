@@ -112,10 +112,6 @@ sub errors ($self) {
     return @{ $self->{errors} };
 }
 
-sub _add_error ( $self, $error ) {
-    push @{ $self->{errors} }, $error;
-}
-
 sub warnings ($self) {
     return @{ $self->{warnings} };
 }
@@ -124,12 +120,16 @@ sub has_warnings ($self) {
     return !!@{ $self->{warnings} };
 }
 
-sub _add_warning ( $self, $warning ) {
-    push @{ $self->{warnings} }, $warning;
-}
-
 sub sbom_data ($self) {
     return $self->{sbom_data};
+}
+
+sub _add_error ( $self, $error ) {
+    push @{ $self->{errors} }, $error;
+}
+
+sub _add_warning ( $self, $warning ) {
+    push @{ $self->{warnings} }, $warning;
 }
 
 sub _push_stack ( $self, $name ) {
