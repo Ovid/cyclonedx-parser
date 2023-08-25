@@ -12,7 +12,7 @@ use Digest::Sha 'sha1_hex', 'sha256_hex', 'sha384_hex', 'sha512_hex';
 use parent 'Exporter';
 our @EXPORT_OK = qw(
   any_string
-  is_arrayref_of_objects
+  is_array_of
   is_one_of
   is_object
   is_string
@@ -94,7 +94,7 @@ sub is_object ( $matching, $required = [] ) {
 
         if ( 'HASH' ne ref $value ) {
             my $ref = _get_type($value);
-            $parser->_add_error( "$name: Value $name must be an object, not a $ref");
+            $parser->_add_error("$name: Value $name must be an object, not a $ref");
             return;
         }
 
@@ -106,28 +106,28 @@ sub is_object ( $matching, $required = [] ) {
     }
 }
 
-sub is_arrayref_of_objects ( $matching, $required = [] ) {
-    my $is_object = is_object( $matching, $required );
-
-    return sub ( $parser, $value ) {
-
-        # if errors are reported, this curious little construct will make sure
-        # that the error is reported with the correct sub name, not "ANON"
-        local *__ANON__ = 'is_arrayref_of_objects';
+# XXX TODOO: Make sure we can at least name whick keys fail, and where
+sub is_array_of ($matches) {
+    if ( 'CODE' ne ref $matches ) {
+        croak("is_array_of must be passed a coderef");
+    }
+    return sub ( $parser, $arrayref ) {
         my $name = $parser->_stack;
-
-        if ( 'ARRAY' ne ref $value ) {
-            my $ref = _get_type($value);
-            $parser->_add_error( "$name: Value $name must be an array ref, not a $ref");
+        if ( 'ARRAY' ne ref $arrayref ) {
+            $parser->_add_error( "Value $name must be an arrayref, not a " . _get_type($arrayref) );
             return;
         }
-
         my $success = 1;
-        for my $i ( 0 .. $#$value ) {
-            my $object = $value->[$i];
+        THING: for my $i ( 0 .. $#$arrayref ) {
+            my $item = $arrayref->[$i];
             $parser->_push_stack($i);
-            $is_object->( $parser, $object ) or $success = 0;
+            if ( !$parser->$matches($item) ) {
+                $success = 0;
+            }
             $parser->_pop_stack;
+        }
+        if ( !$success ) {
+            $parser->_add_error("Invalid $name. Does not match any of the specified checks");
         }
         return $success;
     }
@@ -139,7 +139,6 @@ sub _get_type ($value) {
       : defined ref $value               ? 'scalar'
       :                                    'undef';
 }
-
 
 =head2 C<is_one_of>
 
@@ -165,18 +164,28 @@ sub is_one_of (@things) {
     if ( @things != grep { 'CODE' eq ref $_ } @things ) {
         croak("is_one_of must be passed only CODE refs");
     }
-    return sub ($parser, $value) {
-        my $name = $parser->_stack;
+    return sub ( $parser, $value ) {
+        my $name    = $parser->_stack;
         my $success = 0;
+
+        my ( @errors, @warnings );
         THING: for my $thing (@things) {
             $parser->_stash_error_state;
-            if ($thing->($parser, $value)) {
+            if ( $parser->$thing($value) ) {
                 $success = 1;
             }
-            $parser->_unstash_error_state;
+            my ( $addded_errors, $added_warnings ) = $parser->_unstash_error_state;
+            push @errors,   @$addded_errors;
+            push @warnings, @$added_warnings;
             last THING if $success;
         }
-        if (!$success) {
+        if ( !$success ) {
+            foreach my $error (@errors) {
+                $parser->_add_error($error);
+            }
+            foreach my $warning (@warnings) {
+                $parser->_add_warning($warning);
+            }
             $parser->_add_error("Invalid $name. Does not match any of the specified checks");
         }
         return $success;

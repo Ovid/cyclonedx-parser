@@ -81,11 +81,24 @@ sub validate ($self) {
             metadata     => is_object(
                 {
                     timestamp  => is_string(qr/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\+\d\d:\d\d)?Z?$/),
-                    properties => is_arrayref_of_objects(
-                        {
-                            name  => non_empty_string,    # valid-properties not failing if I put an empty name
-                            value => non_empty_string,
-                        }
+                    properties => is_array_of(
+                        is_object(
+                            {
+                                name  => non_empty_string,    # valid-properties not failing if I put an empty name
+                                value => non_empty_string,
+                            }
+                        ),
+                    ),
+                    lifecycles => is_array_of(
+                        is_one_of(
+                            is_object(
+                                {
+                                    phase => is_string( [ "design", "pre-build", "build", "post-build", "operations", "discovery", "decommission" ] ),
+                                },
+                                ['phase']
+                            ),
+                            is_object( { name => any_string, description => any_string }, ['name'] ),
+                        )
                     ),
                 },
             ),
@@ -145,7 +158,7 @@ sub _stash_error_state ($self) {
         # the stack and pop them off as appropriate
         croak "Can't stash error state twice: $stack";
     }
-    $error_state->{stashed}  = $self->_stack;
+    $error_state->{stashed} = $self->_stack;
 
     # shallow copies to avoid referencing
     $error_state->{errors}   = [ @{ $self->{errors} } ];
@@ -158,13 +171,27 @@ sub _unstash_error_state ($self) {
         croak "Can't unstash error state when it hasn't been stashed";
     }
 
+    my $stashed_error_state   = $error_state->{errors};
+    my $stashed_warning_state = $error_state->{warnings};
+    my $old_error_count       = @$stashed_error_state;
+    my $old_warning_count     = @$stashed_warning_state;
+
+    my @new_errors   = @{ $self->{errors} };
+    my @new_warnings = @{ $self->{warnings} };
+
+    my @added_errors   = splice @new_errors,   0, $old_error_count;
+    my @added_warnings = splice @new_warnings, 0, $old_warning_count;
+
     # shallow copies to avoid referencing
-    $self->{errors}         = [ @{ $error_state->{errors} } ];
-    $self->{warnings}       = [ @{ $error_state->{warnings} } ];
+    $self->{errors}   = [@$stashed_error_state];
+    $self->{warnings} = [@$stashed_warning_state];
+
     $error_state->{stashed} = undef;
     my $stack = $self->_stack;
     $self->_debug( 0, "Unstashed error state at $stack" );
     $self->_debug_dump( 0, { error_state => $error_state, errors => $self->{errors}, warnings => $self->{warnings} } );
+
+    return \@added_errors, \@added_warnings;
 }
 
 sub _add_error ( $self, $error ) {

@@ -96,13 +96,15 @@ subtest 'is_object' => sub {
     like $errors[0], qr/Value test must be an object/, '... and the error should be the expected one';
 };
 
-subtest 'is_arrayref_of_objects' => sub {
-    my $object = {
-        color => is_string( [qw/red green blue/] ),
-        name  => is_string(qr/^[a-zA-Z ]+$/),
-    };
-    ok my $is_aoh = is_arrayref_of_objects($object), 'is_arrayref_of_objects($some_hashref) should succeed';
-    is ref $is_aoh, 'CODE', 'is_arrayref_of_objects() should return a subref';
+subtest 'is_array_of' => sub {
+    my $object = is_object(
+        {
+            color => is_string( [qw/red green blue/] ),
+            name  => is_string(qr/^[a-zA-Z ]+$/),
+        }
+    );
+    ok my $is_aoh = is_array_of($object), 'is_array_of($some_hashref) should succeed';
+    is ref $is_aoh, 'CODE', 'is_array_of() should return a subref';
     my $p = parser($json);
     ok $is_aoh->(
         $p,
@@ -111,31 +113,38 @@ subtest 'is_arrayref_of_objects' => sub {
 
         ]
       ),
-      'is_arrayref_of_objects() should return true if the aoh matches the schema';
+      'is_array_of() should return true if the aoh matches the schema';
     ok $p->is_valid,                            '... and we should have no errors';
     ok $is_aoh->( $p, [ { name => 'foo' } ] ),  '... and keys can be optional';
     ok $p->is_valid,                            '... and we should have no errors';
     ok !$is_aoh->( $p, [ { name => '!!!' } ] ), '... but they had better be the right values';
     ok !$p->is_valid,                           '... and we should have errors';
 
-    $p      = parser($json);
-    $is_aoh = is_arrayref_of_objects( $object, ['color'] );
+    $p = parser($json);
+    my $object2 = is_object(
+        {
+            color => is_string( [qw/red green blue/] ),
+            name  => is_string(qr/^[a-zA-Z ]+$/),
+        },
+        ['color']
+    );
+    $is_aoh = is_array_of($object2);
 
-    ok $is_aoh->( $p, [ { color => 'red', name => 'foo' } ] ), 'is_arrayref_of_objects() should return true if the hashref value matches the schema';
+    ok $is_aoh->( $p, [ { color => 'red', name => 'foo' } ] ), 'is_array_of() should return true if the hashref value matches the schema';
     ok $p->is_valid,                                           '... and we should have no errors';
     ok !$is_aoh->( $p, [ { name => 'foo' } ] ),                '... but missing required keys should return false';
     ok !$p->is_valid,                                          '... and we should have errors';
     my @errors = $p->errors;
-    is @errors, 1, '... and we should have one error';
+    is @errors, 2, '... and we should have two errors';
     like $errors[0], qr/Missing required field 'test\.0\.color'/, '... and the error should be the expected one';
 
     $p      = parser($json);
-    $is_aoh = is_arrayref_of_objects($object);
-    ok !$is_aoh->( $p, 'bar' ), 'is_arrayref_of_objects() should return false if the value does not exactly match';
+    $is_aoh = is_array_of($object);
+    ok !$is_aoh->( $p, 'bar' ), 'is_array_of() should return false if the value does not exactly match';
     ok !$p->is_valid,           '... and we should have errors';
     @errors = $p->errors;
     is @errors, 1, '... and we should have one error';
-    like $errors[0], qr/Value test must be an array ref, not a scalar/, '... and the error should be the expected one';
+    like $errors[0], qr/Value test must be an arrayref, not a scalar/, '... and the error should be the expected one';
 };
 
 subtest 'is_one_of' => sub {
@@ -148,11 +157,11 @@ subtest 'is_one_of' => sub {
 
     ok my $is_one_of = is_one_of( $is_object, $is_string ), 'is_one_of($is_object, $is_string) should succeed';
 
-    my $p = parser( $json );
+    my $p = parser($json);
     is $p->_stack, 'test', 'Our stack should be correct';
     ok $is_one_of->( $p, { color => 'red', name => 'foo' } ), 'is_one_of() should return true if value matches one of the checks';
     is $p->_stack, 'test', 'Our stack should be correct';
-    ok $p->is_valid, '... and we should have no errors';
+    ok $p->is_valid,              '... and we should have no errors';
     ok $is_one_of->( $p, 'bob' ), 'is_one_of() should return true if value matches one of the checks';
     ok $p->is_valid,              '... and we should have no errors';
 };

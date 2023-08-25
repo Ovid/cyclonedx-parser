@@ -21,7 +21,7 @@ foreach my $file ( sort keys %files ) {
         subtest "$name: $file" => sub {
             ok !$parser->is_valid, "The SBOM should be invalid";
             has_errors( $parser, $reason ) or do {
-                diag $parser->raw_json;
+                diag $parser->json;
                 die "Halting test. Check the JSON";
             };
         };
@@ -134,7 +134,10 @@ sub invalid_files {
         't/data/1.5/valid-evidence-1.5.json'                 => "",
         't/data/1.5/valid-metadata-license-1.5.json'         => "",
         't/data/1.5/valid-properties-1.5.json'               => "",
-        't/data/1.5/invalid-properties-1.5.json'             => "Invalid metadata.properties.0.name. Must match '[^']+', not ''",
+        't/data/1.5/invalid-properties-1.5.json'             => [
+            "Invalid metadata.properties.0.name. Must match '[^']+', not ''",
+            'Invalid metadata.properties. Does not match any of the specified checks'
+        ],
         't/data/1.5/invalid-hash-md5-1.5.json'               => "",
         't/data/1.5/invalid-metadata-timestamp-1.5.json'     => "Invalid metadata.timestamp. Must match '[^']+', not '2020-04-13'",
         't/data/1.5/valid-component-hashes-1.5.json'         => "",
