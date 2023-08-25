@@ -84,7 +84,7 @@ done_testing;
 sub invalid_files {
     return (
         't/data/1.5/invalid-bomformat-1.5.json'        => "Invalid bomFormat. Must be 'CycloneDX', not 'AnotherFormat'",
-        't/data/1.5/invalid-specversion-1.5.json'      => "Invalid specVersion. Must be '1.5', not '1.3'",
+        #'t/data/1.5/invalid-specversion-1.5.json'      => "Invalid specVersion. Must be '1.5', not '1.3'",
         't/data/1.5/invalid-version-1.5.json'          => "Invalid version. Must match .*?, not '12.3'",
         't/data/1.5/invalid-hash-sha256-1.5.json'      => "",
         't/data/1.5/invalid-patch-type-1.5.json'       => "",

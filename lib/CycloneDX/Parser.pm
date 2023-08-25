@@ -9,6 +9,7 @@ use experimental 'signatures';
 
 use Carp qw(cluck carp croak);
 use JSON::PP 'decode_json';
+use Module::Load 'load';
 
 use CycloneDX::Parser::Checks ':all';
 
@@ -32,7 +33,17 @@ sub _initialize ( $self, %arg_for ) {
     if ($filename) {
         open my $fh, '<', $filename or croak "Can't open $filename for reading: $!";
         $json_string = do { local $/; <$fh> };
+        close $fh or croak "Can't close $filename: $!";
     }
+
+    $self->{sbom_data} = eval {
+        decode_json($json_string);                 # the JSON as a Perl structure
+    } or do {
+        croak "Invalid JSON in $filename: $@";
+    };
+    my $specVersion = $self->sbom_data->{specVersion} // croak("No specVersion specified");
+
+    $self->{specVersion} = $specVersion;           # CycloneDX spec version
     $self->{filename}    = $filename;              # the source of the JSON, if file passed
     $self->{json}        = $json_string;           # the JSON as a string
     $self->{debug}       = $arg_for{debug} // 0;
@@ -41,12 +52,8 @@ sub _initialize ( $self, %arg_for ) {
         errors   => [],
         warnings => [],
     };
-    $self->{sbom_data} = eval {
-        decode_json($json_string);                 # the JSON as a Perl structure
-    } or do {
-        croak "Invalid JSON in $filename: $@";
-    };
 
+    $self->_load_version($specVersion);
     $self->validate;
 
     if ( $self->has_warnings ) {
@@ -61,6 +68,14 @@ sub _initialize ( $self, %arg_for ) {
     return $self;
 }
 
+sub _load_version($self, $specVersion) {
+    my $version = "v$specVersion";
+    $version =~ s/\./_/g;
+    #use CycloneDX::Parser::v1_5::JSON;
+    my $module = "CycloneDX::Parser::${version}::JSON"; # later, maybe XML
+    load $module, qw(sbom_spec);
+}
+
 sub validate ($self) {
 
     # make sure theyse are empty before we start validation.
@@ -69,52 +84,10 @@ sub validate ($self) {
     $self->{stack}         = [];    # track the current location in the JSON
     $self->{bom_refs_seen} = {};    # track bom-ref ids to ensure they are unique
 
-    # for 1.5, these are the only required fields. `version` is no longer required
-    # because if it's missing, it has an optional value of 1.
+    my $spec = sbom_spec();
     $self->_validate(
-        object => {
-            bomFormat    => is_string('CycloneDX'),
-            specVersion  => is_string('1.5'),
-            components   => \&_validate_components,
-            serialNumber => is_string(qr/^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/),
-            version      => is_string(qr/^[1-9][0-9]*$/),
-            metadata     => is_object(
-                {
-                    timestamp  => is_string(qr/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\+\d\d:\d\d)?Z?$/),
-                    properties => is_array_of(
-                        is_object(
-                            {
-                                name  => non_empty_string,    # valid-properties not failing if I put an empty name
-                                value => non_empty_string,
-                            }
-                        ),
-                    ),
-                    lifecycles => is_array_of(
-                        is_one_of(
-                            is_object(
-                                {
-                                    phase => is_string( [ "design", "pre-build", "build", "post-build", "operations", "discovery", "decommission" ] ),
-                                },
-                                ['phase']
-                            ),
-                            is_object( { name => any_string, description => any_string }, ['name'] ),
-                        )
-                    ),
-                },
-            ),
-
-            # lifecycles
-            # services
-            # dependencies
-            # externalReferences
-            # properties
-            # vulnerabilities
-            # annotations
-            # formulation
-            # properties
-            # signature
-        },
-        required => [qw( bomFormat specVersion )],
+        object   => $spec->{object},
+        required => $spec->{required},
         source   => $self->sbom_data,
     );
 }
@@ -210,13 +183,6 @@ sub _push_stack ( $self, $name ) {
     push @{ $self->{stack} }, $name;
 }
 
-sub _debug_leader ( $self, $char ) {
-    my $stack = $self->_stack;
-    my $num   = 1 + $stack =~ tr/././;
-    $num *= 2;
-    return $char x $num;
-}
-
 sub _pop_stack ($self) {
     my $name = pop @{ $self->{stack} };
     if ( $self->_is_debugging ) {
@@ -227,6 +193,13 @@ sub _pop_stack ($self) {
 
 sub _is_debugging ($self) {
     return $self->{debug};
+}
+
+sub _debug_leader ( $self, $char ) {
+    my $stack = $self->_stack;
+    my $num   = 1 + $stack =~ tr/././;
+    $num *= 2;
+    return $char x $num;
 }
 
 sub _debug ( $self, $in, $string ) {
@@ -242,7 +215,7 @@ sub _debug_dump ( $self, $in, $data ) {
     my $spaces = ' ' x length $leader;
 
     require Data::Dumper;
-    no warnings 'once';
+    no warnings 'once';    ## no critic (TestingAndDebugging::ProhibitNoWarnings)
     local $Data::Dumper::Terse     = 1;
     local $Data::Dumper::Indent    = 1;
     local $Data::Dumper::Sortkeys  = 1;
@@ -302,83 +275,6 @@ sub _bom_ref_seen ( $self, $bom_ref ) {
     my $seen = $self->{bom_refs_seen}{$bom_ref};
     $self->{bom_refs_seen}{$bom_ref}++;
     return $seen;
-}
-
-sub _validate_components ( $self, $components ) {
-    unless ( ref $components eq 'ARRAY' ) {
-        $self->_add_error('Components must be an array');
-        return;
-    }
-
-    foreach my $i ( 0 .. $#$components ) {
-        $self->_push_stack($i);
-        my $component = $components->[$i];
-        $self->_validate(
-            object => {
-                name => is_string(qr/\S/),
-                type => is_string(
-                    [   "application",
-                        "framework",
-                        "library",
-                        "container",
-                        "platform",
-                        "operating-system",
-                        "device",
-                        "device-driver",
-                        "firmware",
-                        "file",
-                        "machine-learning-model",
-                        "data",
-                    ],
-                ),
-                version     => non_empty_string,                                # version not enforced
-                'mime-type' => is_string( qr{^[-+a-z0-9.]+/[-+a-z0-9.]+$}, ),
-                'bom-ref'   => non_empty_string,
-                author      => any_string,
-                publisher   => any_string,
-                group       => any_string,
-                description => any_string,
-                scope       => is_string( [qw/required optional excluded/] ),
-                copyright   => any_string,
-                cpe         => any_string,                                      # dont' have great info on matching a "well-formed CPE string"
-                    # See # https://metacpan.org/dist/URI-PackageURL/source/lib/URI/PackageURL.pm # for purl
-                purl       => is_string(qr{^pkg:[A-Za-z\\.\\-\\+][A-Za-z0-9\\.\\-\\+]*/.+}),
-                components => \&_validate_components,                                          # yup, components can take components
-
-                # supplier is an object
-                # hashes is an array of objects
-                # licenses is an array of objects
-                # externalReferences is an array of objects
-                # data is an array of objects
-                # properties is an array of objects
-                # swid is an object
-                # pedigree is an object
-                # evidence is an object
-                # releaseNotes is an object
-                # modelCard is an object
-                # signature is an object
-            },
-            required => [qw( name type )],
-            source   => $component,
-        );
-
-        my $name = $self->_stack;
-
-        # bom-ref must be unique
-        if ( exists $component->{'bom-ref'} ) {
-            if ( $self->_bom_ref_seen( $component->{'bom-ref'} ) ) {
-                $self->_add_error( sprintf "$name.bom-ref: Duplicate bom-ref '%s'", $component->{'bom-ref'} );
-            }
-
-            # XXX later, we'll have more validation
-        }
-
-        if ( exists $component->{modified} ) {
-            $self->_add_warning('$name.modified is deprecated and should not be used.');
-        }
-
-        $self->_pop_stack;
-    }
 }
 
 1;
