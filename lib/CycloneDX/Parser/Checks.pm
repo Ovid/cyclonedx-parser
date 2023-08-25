@@ -3,7 +3,6 @@ package CycloneDX::Parser::Checks;
 # ABSTRACT: Simple "type" checks for the JSON structure
 
 use v5.14.0;
-use strict;
 use warnings;
 use experimental 'signatures';
 use Carp 'croak';
@@ -19,6 +18,8 @@ our @EXPORT_OK = qw(
   non_empty_string
 );
 our %EXPORT_TAGS = ( all => \@EXPORT_OK );
+
+our $VERSION = '0.01';
 
 # Because this is core, we're using exported subs as "poor man roles"
 #

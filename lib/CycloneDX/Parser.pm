@@ -3,15 +3,12 @@ package CycloneDX::Parser;
 # ABSTRACT: Parser for CycloneDX SBOMs
 
 use v5.14.0;
-use strict;
 use warnings;
 use experimental 'signatures';
 
-use Carp qw(cluck carp croak);
+use Carp qw(carp croak);
 use JSON::PP 'decode_json';
 use Module::Load 'load';
-
-use CycloneDX::Parser::Checks ':all';
 
 our $VERSION = '0.01';
 

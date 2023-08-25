@@ -3,7 +3,6 @@ package CycloneDX::Parser::v1_5::JSON;
 # ABSTRACT: JSON parser for CycloneDX SBOMs, v1.5
 
 use v5.14.0;
-use strict;
 use warnings;
 use experimental 'signatures';
 
