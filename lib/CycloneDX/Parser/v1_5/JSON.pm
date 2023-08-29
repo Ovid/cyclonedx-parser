@@ -62,11 +62,27 @@ sub sbom_spec () {
                             }
                         ),
                     ),
+                    manufacture => is_object(
+                        {
+                            name      => non_empty_string,
+                            url       => is_array_of(any_string),
+                            'bom-ref' => non_empty_string,
+                            contact   => is_array_of(
+                                is_object(
+                                    {
+                                        name      => non_empty_string,
+                                        email     => any_string,
+                                        phone     => any_string,
+                                        'bom-ref' => non_empty_string,
+                                    }
+                                ),
+                            ),
+                        }
+                    ),
                 },
 
                 # tools
                 # component
-                # manufacture
                 # supplier
                 # licenses
             ),
