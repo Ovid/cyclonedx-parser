@@ -19,6 +19,9 @@ our %EXPORT_TAGS = ( all => \@EXPORT_OK );
 
 our $VERSION = '0.01';
 
+# Need to read more about where bom-refs are defined (so we can better ensure
+# uniqueness) and where they're consumed (where uniqueness isn't required)
+
 sub sbom_spec () {
     return {
         object => {
@@ -49,10 +52,25 @@ sub sbom_spec () {
                             is_object( { name => any_string, description => any_string }, ['name'] ),
                         )
                     ),
+                    authors => is_array_of(
+                        is_object(
+                            {
+                                name      => non_empty_string,
+                                email     => any_string,
+                                phone     => any_string,
+                                'bom-ref' => non_empty_string,
+                            }
+                        ),
+                    ),
                 },
+
+                # tools
+                # component
+                # manufacture
+                # supplier
+                # licenses
             ),
 
-            # lifecycles
             # services
             # dependencies
             # externalReferences
@@ -63,6 +81,7 @@ sub sbom_spec () {
             # properties
             # signature
         },
+
         # for 1.5, these are the only required fields. `version` is no longer required
         # because if it's missing, it has an optional value of 1.
         required => [qw(bomFormat specVersion )],
