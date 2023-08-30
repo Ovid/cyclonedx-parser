@@ -102,11 +102,18 @@ sub sbom_spec () {
                 # component
                 # licenses
             ),
+            properties => is_array_of(
+                is_object(
+                    {
+                        name  => non_empty_string,    # valid-properties not failing if I put an empty name
+                        value => non_empty_string,
+                    }
+                ),
+            ),
 
             # services
             # dependencies
             # externalReferences
-            # properties
             # vulnerabilities
             # annotations
             # formulation
