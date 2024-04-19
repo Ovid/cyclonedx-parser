@@ -6,7 +6,7 @@ use v5.14.0;
 use warnings;
 use experimental 'signatures';
 use Carp 'croak';
-use Digest::Sha 'sha1_hex', 'sha256_hex', 'sha384_hex', 'sha512_hex';
+use Digest::SHA 'sha1_hex', 'sha256_hex', 'sha384_hex', 'sha512_hex';
 
 use parent 'Exporter';
 our @EXPORT_OK = qw(
